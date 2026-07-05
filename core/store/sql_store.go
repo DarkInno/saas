@@ -113,7 +113,7 @@ func (store *SQLStore) Get(ctx context.Context, id types.TenantID) (types.Tenant
 }
 
 // List returns tenants matching filter.
-func (store *SQLStore) List(ctx context.Context, filter ListFilter) ([]types.Tenant, error) {
+func (store *SQLStore) List(ctx context.Context, filter ListFilter) (tenants []types.Tenant, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -143,9 +143,11 @@ func (store *SQLStore) List(ctx context.Context, filter ListFilter) ([]types.Ten
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		err = errors.Join(err, rows.Close())
+	}()
 
-	tenants := []types.Tenant{}
+	tenants = []types.Tenant{}
 	for rows.Next() {
 		tenant, err := scanTenant(rows)
 		if err != nil {

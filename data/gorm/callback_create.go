@@ -13,7 +13,7 @@ import (
 func (plugin *Plugin) fillTenantOnCreate(tx *gorm.DB) {
 	filter, err := plugin.newFilter(tx.Statement.Context)
 	if err != nil {
-		tx.AddError(err)
+		addDBError(tx, err)
 		return
 	}
 	if filter.IsHost() {
@@ -22,11 +22,11 @@ func (plugin *Plugin) fillTenantOnCreate(tx *gorm.DB) {
 
 	tenantID, ok := filter.TenantID()
 	if !ok {
-		tx.AddError(ErrTenantFieldNotFound)
+		addDBError(tx, ErrTenantFieldNotFound)
 		return
 	}
 	if err := plugin.setTenantField(tx, tenantID); err != nil {
-		tx.AddError(err)
+		addDBError(tx, err)
 	}
 }
 

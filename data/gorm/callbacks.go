@@ -17,7 +17,7 @@ func (plugin *Plugin) addTenantCondition(tx *gorm.DB) {
 
 	filter, err := plugin.newFilter(tx.Statement.Context)
 	if err != nil {
-		tx.AddError(err)
+		addDBError(tx, err)
 		return
 	}
 	if filter.IsHost() {
@@ -43,11 +43,11 @@ func (plugin *Plugin) requireHostForRaw(tx *gorm.DB) {
 
 	filter, err := plugin.newFilter(tx.Statement.Context)
 	if err != nil {
-		tx.AddError(err)
+		addDBError(tx, err)
 		return
 	}
 	if !filter.IsHost() {
-		tx.AddError(ErrRawRequiresHost)
+		addDBError(tx, ErrRawRequiresHost)
 	}
 }
 

@@ -14,11 +14,11 @@ const safeSQLKey = "gotenancy:safe_sql"
 func SafeRaw(ctx context.Context, db *gorm.DB, sqlText string, values ...interface{}) *gorm.DB {
 	tx := db.WithContext(ctx)
 	if !tenantctx.IsHost(ctx) {
-		tx.AddError(ErrRawRequiresHost)
+		addDBError(tx, ErrRawRequiresHost)
 		return tx
 	}
 	if err := ctx.Err(); err != nil {
-		tx.AddError(err)
+		addDBError(tx, err)
 		return tx
 	}
 	return tx.Set(safeSQLKey, true).Raw(sqlText, values...)
@@ -28,11 +28,11 @@ func SafeRaw(ctx context.Context, db *gorm.DB, sqlText string, values ...interfa
 func SafeExec(ctx context.Context, db *gorm.DB, sqlText string, values ...interface{}) *gorm.DB {
 	tx := db.WithContext(ctx)
 	if !tenantctx.IsHost(ctx) {
-		tx.AddError(ErrRawRequiresHost)
+		addDBError(tx, ErrRawRequiresHost)
 		return tx
 	}
 	if err := ctx.Err(); err != nil {
-		tx.AddError(err)
+		addDBError(tx, err)
 		return tx
 	}
 	return tx.Set(safeSQLKey, true).Exec(sqlText, values...)

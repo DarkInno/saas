@@ -9,7 +9,7 @@ func (plugin *Plugin) guardPreloads(tx *gorm.DB) {
 
 	filter, err := plugin.newFilter(tx.Statement.Context)
 	if err != nil {
-		tx.AddError(err)
+		addDBError(tx, err)
 		return
 	}
 	if filter.IsHost() {

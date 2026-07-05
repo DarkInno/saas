@@ -23,7 +23,7 @@ func (scopes Scopes) TenantScope(ctx context.Context) func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		filter, err := plugin.newFilter(ctx)
 		if err != nil {
-			db.AddError(err)
+			addDBError(db, err)
 			return db
 		}
 		if filter.IsHost() {

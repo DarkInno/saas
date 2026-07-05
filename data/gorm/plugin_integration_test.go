@@ -30,7 +30,11 @@ func TestMySQLIntegrationEnforcesTenantIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}
-	defer sqlDB.Close()
+	t.Cleanup(func() {
+		if err := sqlDB.Close(); err != nil {
+			t.Errorf("sqlDB.Close() error = %v", err)
+		}
+	})
 	if err := pingMySQLUntilReady(ctx, sqlDB); err != nil {
 		t.Fatalf("mysql not ready: %v", err)
 	}

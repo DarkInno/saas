@@ -4,6 +4,8 @@ import (
 	"errors"
 
 	"gotenancy"
+
+	"gorm.io/gorm"
 )
 
 var (
@@ -19,3 +21,12 @@ var (
 	// ErrRawRequiresHost reports that raw SQL requires explicit host context.
 	ErrRawRequiresHost = errors.New("gotenancy/gorm: raw SQL requires host context")
 )
+
+func addDBError(db *gorm.DB, err error) {
+	if err == nil {
+		return
+	}
+	if added := db.AddError(err); added != nil {
+		db.Error = added
+	}
+}
