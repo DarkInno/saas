@@ -4,7 +4,7 @@
 
 - Module language version: Go `1.23`.
 - `go.mod` records this as `go 1.23.0`.
-- CI should use Go `1.26.x` or newer compatible patch versions.
+- CI test jobs should cover Go `1.23.x` and Go `1.26.x`; lint runs on Go `1.26.x`.
 
 The module should not require Go `1.24+` dependencies without an explicit compatibility decision.
 
