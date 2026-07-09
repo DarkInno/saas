@@ -4,6 +4,12 @@ All notable changes to GoTenancy are documented in this file.
 
 ## Unreleased
 
+## v0.1.4 - 2026-07-09
+
+- Restored ORM, framework, gRPC, and example packages to the main Go module so `go get github.com/DarkInno/gotenancy` provides the full package surface.
+- Reverted CI and lint verification to root-module checks while keeping SQLStore database integration tests outside the default gate.
+- Clarified that future extension capabilities, not the core adoption adapters, are the right split boundary.
+
 ## v0.1.3 - 2026-07-09
 
 - Split ORM, framework, gRPC, and example packages into separate Go modules so the root module no longer pulls adapter dependencies.

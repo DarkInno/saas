@@ -1,4 +1,4 @@
-package gormtenant_test
+package security_test
 
 import (
 	"context"
@@ -21,7 +21,7 @@ type guardedOrder struct {
 	Name     string
 }
 
-func TestSecurityGuardsScopeQueryUpdateDeleteAndCount(t *testing.T) {
+func TestGORMGuardsScopeQueryUpdateDeleteAndCount(t *testing.T) {
 	db := securityDryRunDB(t)
 	ctx := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "tenant-a"})
 
@@ -56,7 +56,7 @@ func TestSecurityGuardsScopeQueryUpdateDeleteAndCount(t *testing.T) {
 	assertVarsContain(t, countTx.Statement.Vars, "tenant-a")
 }
 
-func TestSecurityGuardsBlockUnscoped(t *testing.T) {
+func TestGORMGuardsBlockUnscoped(t *testing.T) {
 	db := securityDryRunDB(t)
 	ctx := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "tenant-a"})
 
@@ -70,7 +70,7 @@ func TestSecurityGuardsBlockUnscoped(t *testing.T) {
 	_ = db.WithContext(ctx).Unscoped().Find(&orders)
 }
 
-func TestSecurityRawRequiresHost(t *testing.T) {
+func TestGORMRawRequiresHost(t *testing.T) {
 	db := securityDryRunDB(t)
 	ctx := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "tenant-a"})
 	exec := db.WithContext(ctx).Exec("DELETE FROM guarded_orders")
