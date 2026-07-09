@@ -31,21 +31,41 @@ jobs:
           cache: true
 
       - name: Unit tests
-        run: go test ./...
+        run: |
+          go test ./...
+          for module in data/gorm data/ent web/gin web/echo web/fiber web/kratos rpc/grpc; do
+            (cd "$module" && go test ./...)
+          done
 
       - name: Example smoke tests
         run: |
-          go run ./examples/quickstart
-          go run ./examples/gin-gorm
-          go run ./examples/grpc
-          go run ./examples/ent
+          (cd examples/quickstart && go run .)
+          (cd examples/gin-gorm && go run .)
+          (cd examples/grpc && go run .)
+          (cd examples/ent && go run .)
 
       - name: Race tests
-        run: go test -race ./...
+        run: |
+          go test -race ./...
+          for module in data/gorm data/ent web/gin web/echo web/fiber web/kratos rpc/grpc; do
+            (cd "$module" && go test -race ./...)
+          done
 
   lint:
     name: golangci-lint
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - "."
+          - data/gorm
+          - data/ent
+          - web/gin
+          - web/echo
+          - web/fiber
+          - web/kratos
+          - rpc/grpc
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -60,3 +80,4 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.9.0
+          working-directory: ${{ matrix.module }}
