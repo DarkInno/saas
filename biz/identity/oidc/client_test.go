@@ -6,8 +6,10 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -642,4 +644,66 @@ func TestMemoryLoginStoreZeroValue(t *testing.T) {
 	if login.TenantID != "tenant-a" {
 		t.Fatalf("ConsumeLogin() = %+v, want tenant-a", login)
 	}
+}
+
+func TestNewSQLLoginStoreValidationAndScan(t *testing.T) {
+	if _, err := NewSQLLoginStore(nil); !errors.Is(err, ErrNilDB) {
+		t.Fatalf("NewSQLLoginStore(nil) error = %v, want ErrNilDB", err)
+	}
+
+	db := &sql.DB{}
+	store, err := NewSQLLoginStore(db)
+	if err != nil {
+		t.Fatalf("NewSQLLoginStore() error = %v", err)
+	}
+	if store.table != DefaultSQLLoginTableName {
+		t.Fatalf("default table = %q, want %q", store.table, DefaultSQLLoginTableName)
+	}
+
+	store, err = NewSQLLoginStore(db, WithLoginTableName("public.oidc_logins"), WithSQLDialect(SQLDialectPostgres), WithLoginTTL(5*time.Minute))
+	if err != nil {
+		t.Fatalf("NewSQLLoginStore(custom) error = %v", err)
+	}
+	if store.table != "public.oidc_logins" || store.dialect != SQLDialectPostgres || store.ttl != 5*time.Minute {
+		t.Fatalf("SQLLoginStore = %+v, want custom table, dialect, and ttl", store)
+	}
+	if got := store.placeholders(3, 2); got != "$2, $3, $4" {
+		t.Fatalf("postgres placeholders = %q, want $2, $3, $4", got)
+	}
+
+	if _, err := NewSQLLoginStore(db, WithLoginTableName("oidc_logins;drop")); !errors.Is(err, ErrInvalidTableName) {
+		t.Fatalf("NewSQLLoginStore(unsafe table) error = %v, want ErrInvalidTableName", err)
+	}
+	if _, err := NewSQLLoginStore(db, WithSQLDialect("oracle")); !errors.Is(err, ErrUnsupportedSQLDialect) {
+		t.Fatalf("NewSQLLoginStore(unsupported dialect) error = %v, want ErrUnsupportedSQLDialect", err)
+	}
+
+	expiresAt := time.Date(2026, 7, 9, 10, 0, 0, 0, time.UTC)
+	rawRoles, err := marshalLoginRoles([]string{"member"})
+	if err != nil {
+		t.Fatalf("marshalLoginRoles() error = %v", err)
+	}
+	login, err := scanLogin(loginScannerFunc(func(dest ...any) error {
+		*(dest[0].(*string)) = "state"
+		*(dest[1].(*string)) = "https://issuer.example.com/authorize"
+		*(dest[2].(*string)) = "nonce"
+		*(dest[3].(*string)) = "verifier"
+		*(dest[4].(*string)) = "tenant-a"
+		*(dest[5].(*sql.NullString)) = sql.NullString{String: "u1", Valid: true}
+		*(dest[6].(*string)) = rawRoles
+		*(dest[7].(*time.Time)) = expiresAt
+		return nil
+	}))
+	if err != nil {
+		t.Fatalf("scanLogin() error = %v", err)
+	}
+	if login.State != "state" || login.Nonce != "nonce" || login.PKCEVerifier != "verifier" || login.TenantID != "tenant-a" || len(login.Roles) != 1 || login.Roles[0] != "member" {
+		t.Fatalf("scanLogin() = %+v, want decoded login", login)
+	}
+}
+
+type loginScannerFunc func(dest ...any) error
+
+func (fn loginScannerFunc) Scan(dest ...any) error {
+	return fn(dest...)
 }

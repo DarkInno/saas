@@ -181,14 +181,14 @@ ctx := tenantctx.WithHost(context.Background())
 - `saas/quota`: quota checking, atomic consumption, reset, memory implementation, and `database/sql` SQLStore.
 - `saas/feature`: plan defaults, tenant-level feature overrides, memory implementation, and `database/sql` SQLStore.
 - `saas/onboarding`: tenant onboarding flow across tenant, plan, subscription, feature, quota, audit, and notification services.
-- `biz/identity`: post-auth tenant user mapping for verified external identity assertions.
-- `biz/identity/oidc`: OIDC authorization-code bridge with PKCE, state, nonce, ID-token verification, one-time login state storage, and assertion output.
+- `biz/identity`: post-auth tenant user mapping for verified external identity assertions, with memory and `database/sql` stores.
+- `biz/identity/oidc`: OIDC authorization-code bridge with PKCE, state, nonce, ID-token verification, one-time login state storage, SQL-backed login state storage, and assertion output.
 - `web/*`: tenant middleware and guards for net/http, Gin, Echo, Fiber, and Kratos.
 - `rpc/grpc`: gRPC unary and stream tenant interceptors.
 - `migration`: tenant column and index planning.
 - `cache`: tenant-scoped cache wrapper and memory adapters.
 - `obs`: observability fields and redaction.
-- `biz/*`: identity, user, RBAC enforcer, audit store, and notification modules.
+- `biz/*`: identity, user, RBAC, audit, and notification modules with memory stores, SQL stores where persistence is part of the module contract, and SMTP notification delivery.
 
 ## Post-Auth Identity Mapping
 

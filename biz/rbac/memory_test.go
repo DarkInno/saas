@@ -2,7 +2,9 @@ package rbac
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"reflect"
 	"testing"
 )
 
@@ -52,4 +54,69 @@ func TestMemoryServiceValidation(t *testing.T) {
 	if _, err := service.GetRole(ctx, "tenant-a", "missing"); !errors.Is(err, ErrRoleNotFound) {
 		t.Fatalf("GetRole(missing) error = %v, want ErrRoleNotFound", err)
 	}
+}
+
+func TestNewSQLStoreValidationAndCodec(t *testing.T) {
+	if _, err := NewSQLStore(nil); !errors.Is(err, ErrNilDB) {
+		t.Fatalf("NewSQLStore(nil) error = %v, want ErrNilDB", err)
+	}
+
+	db := &sql.DB{}
+	store, err := NewSQLStore(db)
+	if err != nil {
+		t.Fatalf("NewSQLStore() error = %v", err)
+	}
+	if store.table != DefaultSQLTableName {
+		t.Fatalf("default table = %q, want %q", store.table, DefaultSQLTableName)
+	}
+
+	store, err = NewSQLStore(db, WithTableName("public.rbac_roles"), WithSQLDialect(SQLDialectPostgres))
+	if err != nil {
+		t.Fatalf("NewSQLStore(custom) error = %v", err)
+	}
+	if store.table != "public.rbac_roles" || store.dialect != SQLDialectPostgres {
+		t.Fatalf("SQLStore = %+v, want custom table and postgres dialect", store)
+	}
+	if got := store.placeholders(3, 2); got != "$2, $3, $4" {
+		t.Fatalf("postgres placeholders = %q, want $2, $3, $4", got)
+	}
+
+	if _, err := NewSQLStore(db, WithTableName("rbac_roles;drop")); !errors.Is(err, ErrInvalidTableName) {
+		t.Fatalf("NewSQLStore(unsafe table) error = %v, want ErrInvalidTableName", err)
+	}
+	if _, err := NewSQLStore(db, WithSQLDialect("oracle")); !errors.Is(err, ErrUnsupportedSQLDialect) {
+		t.Fatalf("NewSQLStore(unsupported dialect) error = %v, want ErrUnsupportedSQLDialect", err)
+	}
+
+	raw, err := marshalPermissions([]Permission{"orders.read", "orders.write"})
+	if err != nil {
+		t.Fatalf("marshalPermissions() error = %v", err)
+	}
+	decoded, err := unmarshalPermissions(raw)
+	if err != nil {
+		t.Fatalf("unmarshalPermissions() error = %v", err)
+	}
+	want := []Permission{"orders.read", "orders.write"}
+	if !reflect.DeepEqual(decoded, want) {
+		t.Fatalf("unmarshalPermissions() = %#v, want %#v", decoded, want)
+	}
+
+	role, err := scanRole(roleScannerFunc(func(dest ...any) error {
+		*(dest[0].(*string)) = "tenant-a"
+		*(dest[1].(*string)) = "admin"
+		*(dest[2].(*string)) = raw
+		return nil
+	}))
+	if err != nil {
+		t.Fatalf("scanRole() error = %v", err)
+	}
+	if role.TenantID != "tenant-a" || role.Key != "admin" || !reflect.DeepEqual(role.Permissions, want) {
+		t.Fatalf("scanRole() = %+v, want decoded role", role)
+	}
+}
+
+type roleScannerFunc func(dest ...any) error
+
+func (fn roleScannerFunc) Scan(dest ...any) error {
+	return fn(dest...)
 }

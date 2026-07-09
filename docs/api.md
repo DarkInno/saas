@@ -50,12 +50,12 @@ Public package overview.
 
 | Package | Purpose |
 |---|---|
-| `biz/identity` | Post-auth tenant user mapping for verified external identity assertions, plus provider metadata presets. |
-| `biz/identity/oidc` | OIDC authorization-code bridge with PKCE, state, nonce, ID-token verification, optional userinfo, one-time login state storage, and assertion output. |
-| `biz/user` | Users and tenant members. |
-| `biz/rbac` | Tenant-scoped roles, `Role.HasPermission`, permission checks, and simple memory Enforcer. |
-| `biz/audit` | Tenant-scoped audit event store. |
-| `biz/notification` | Tenant-scoped notification interface and memory notifier. |
+| `biz/identity` | Post-auth tenant user mapping for verified external identity assertions, provider metadata presets, memory store, and `database/sql` SQLStore. |
+| `biz/identity/oidc` | OIDC authorization-code bridge with PKCE, state, nonce, ID-token verification, optional userinfo, memory/SQL one-time login state storage, and assertion output. |
+| `biz/user` | Users and tenant members with memory implementation and `database/sql` SQLStore. |
+| `biz/rbac` | Tenant-scoped roles, `Role.HasPermission`, permission checks, memory Enforcer, and `database/sql` SQLStore. |
+| `biz/audit` | Tenant-scoped audit event store with memory implementation and `database/sql` SQLStore. |
+| `biz/notification` | Tenant-scoped notification interface, memory notifier, and SMTP email notifier. |
 
 ## Example
 

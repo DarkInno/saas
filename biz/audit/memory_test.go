@@ -2,7 +2,9 @@ package audit
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -34,4 +36,62 @@ func TestMemoryStoreValidation(t *testing.T) {
 	if err := NewMemoryStore().Record(context.Background(), Event{}); !errors.Is(err, ErrInvalidEvent) {
 		t.Fatalf("Record(invalid) error = %v, want ErrInvalidEvent", err)
 	}
+}
+
+func TestNewSQLStoreValidationAndScan(t *testing.T) {
+	if _, err := NewSQLStore(nil); !errors.Is(err, ErrNilDB) {
+		t.Fatalf("NewSQLStore(nil) error = %v, want ErrNilDB", err)
+	}
+
+	db := &sql.DB{}
+	store, err := NewSQLStore(db)
+	if err != nil {
+		t.Fatalf("NewSQLStore() error = %v", err)
+	}
+	if store.table != DefaultSQLTableName {
+		t.Fatalf("default table = %q, want %q", store.table, DefaultSQLTableName)
+	}
+
+	store, err = NewSQLStore(db, WithTableName("public.audit_events"), WithSQLDialect(SQLDialectPostgres))
+	if err != nil {
+		t.Fatalf("NewSQLStore(custom) error = %v", err)
+	}
+	if store.table != "public.audit_events" || store.dialect != SQLDialectPostgres {
+		t.Fatalf("SQLStore = %+v, want custom table and postgres dialect", store)
+	}
+	if got := store.placeholders(3, 2); got != "$2, $3, $4" {
+		t.Fatalf("postgres placeholders = %q, want $2, $3, $4", got)
+	}
+
+	if _, err := NewSQLStore(db, WithTableName("audit_events;drop")); !errors.Is(err, ErrInvalidTableName) {
+		t.Fatalf("NewSQLStore(unsafe table) error = %v, want ErrInvalidTableName", err)
+	}
+	if _, err := NewSQLStore(db, WithSQLDialect("oracle")); !errors.Is(err, ErrUnsupportedSQLDialect) {
+		t.Fatalf("NewSQLStore(unsupported dialect) error = %v, want ErrUnsupportedSQLDialect", err)
+	}
+
+	createdAt := time.Date(2026, 7, 9, 10, 0, 0, 0, time.UTC)
+	event, err := scanEvent(eventScannerFunc(func(dest ...any) error {
+		*(dest[0].(*sql.NullString)) = sql.NullString{String: "event-1", Valid: true}
+		*(dest[1].(*string)) = "tenant-a"
+		*(dest[2].(*sql.NullString)) = sql.NullString{String: "user-1", Valid: true}
+		*(dest[3].(*string)) = "orders.create"
+		*(dest[4].(*string)) = "order:1"
+		*(dest[5].(*time.Time)) = createdAt
+		*(dest[6].(*string)) = `{"ip":"127.0.0.1"}`
+		return nil
+	}))
+	if err != nil {
+		t.Fatalf("scanEvent() error = %v", err)
+	}
+	wantMetadata := map[string]string{"ip": "127.0.0.1"}
+	if event.ID != "event-1" || event.TenantID != "tenant-a" || event.ActorID != "user-1" || !reflect.DeepEqual(event.Metadata, wantMetadata) {
+		t.Fatalf("scanEvent() = %+v, want decoded event", event)
+	}
+}
+
+type eventScannerFunc func(dest ...any) error
+
+func (fn eventScannerFunc) Scan(dest ...any) error {
+	return fn(dest...)
 }

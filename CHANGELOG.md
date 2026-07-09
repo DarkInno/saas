@@ -7,6 +7,9 @@ All notable changes to GoTenancy are documented in this file.
 - Added SaaS SQL stores for plans, subscriptions, feature flags, and quota usage, including safe table-name validation and MySQL/SQLite/PostgreSQL placeholder rendering.
 - Added plan and subscription Store/List APIs plus Store-oriented memory constructors while keeping existing service constructors.
 - Added `Role.HasPermission`, RBAC `Enforcer`, `MemoryEnforcer`, and nil-store guards for quota services.
+- Added `database/sql` SQLStore implementations for `biz/audit` and `biz/rbac`.
+- Added `database/sql` SQLStore implementations for `biz/user`, `biz/identity`, and OIDC login state.
+- Added SMTP email delivery for `biz/notification`.
 
 ## v0.1.5 - 2026-07-09
 

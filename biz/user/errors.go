@@ -9,4 +9,10 @@ var (
 	ErrMemberNotFound = errors.New("gotenancy/user: member not found")
 	ErrMemberExists   = errors.New("gotenancy/user: member already exists")
 	ErrTenantMismatch = errors.New("gotenancy/user: tenant mismatch")
+
+	ErrNilDB = errors.New("gotenancy/user: nil db")
+
+	ErrInvalidTableName = errors.New("gotenancy/user: invalid table name")
+
+	ErrUnsupportedSQLDialect = errors.New("gotenancy/user: unsupported sql dialect")
 )
