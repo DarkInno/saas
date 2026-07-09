@@ -1,10 +1,12 @@
 # GoTenancy
 
-ORM-independent Go toolkit for shared-database multi-tenancy with `tenant_id`.
+[![Go Reference](https://pkg.go.dev/badge/github.com/DarkInno/gotenancy.svg)](https://pkg.go.dev/github.com/DarkInno/gotenancy)
+[![CI](https://github.com/DarkInno/gotenancy/actions/workflows/ci.yml/badge.svg)](https://github.com/DarkInno/gotenancy/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-GoTenancy provides tenant context, tenant resolution, data guards, web/RPC middleware, tenant metadata storage, and common SaaS modules.
+GoTenancy is an ORM-independent Go toolkit for shared-database multi-tenancy with a required `tenant_id` boundary.
 
-The default model is simple: every tenant-owned row carries `tenant_id`, and adapters derive the active tenant from `context.Context`.
+It provides tenant context, tenant resolution, data guards, web/RPC middleware, tenant metadata storage, and common SaaS modules. The default model is simple: every tenant-owned row carries `tenant_id`, and adapters derive the active tenant from `context.Context`.
 
 ## Scope
 
@@ -27,26 +29,140 @@ go mod init your-app
 go get github.com/DarkInno/gotenancy
 ```
 
-## Quick Start
+## Complete Example
+
+This copy-paste example creates an in-memory tenant, installs the GORM plugin, runs a tenant-scoped query in GORM DryRun mode, and prints the generated SQL. It does not require a live database.
 
 ```go
-db.Use(gormtenant.New(gormtenant.Config{}))
+package main
 
-ctx := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "tenant-a"})
-db.WithContext(ctx).Find(&orders)
+import (
+	"context"
+	"fmt"
+	"log"
+
+	tenantctx "github.com/DarkInno/gotenancy/core/context"
+	"github.com/DarkInno/gotenancy/core/store"
+	"github.com/DarkInno/gotenancy/core/types"
+	gormtenant "github.com/DarkInno/gotenancy/data/gorm"
+
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+)
+
+type Order struct {
+	ID       uint
+	TenantID string `gorm:"column:tenant_id"`
+	Number   string `gorm:"column:number"`
+}
+
+func main() {
+	ctx := context.Background()
+	tenants := store.NewMemoryStore()
+	if err := tenants.Create(ctx, types.Tenant{
+		ID:     "tenant-a",
+		Name:   "Tenant A",
+		Status: types.TenantStatusActive,
+	}); err != nil {
+		log.Fatal(err)
+	}
+
+	tenant, err := tenants.Get(ctx, "tenant-a")
+	if err != nil {
+		log.Fatal(err)
+	}
+	ctx = tenantctx.WithTenant(ctx, tenant)
+
+	db, err := gorm.Open(mysql.New(mysql.Config{
+		DSN:                       "user:pass@tcp(localhost:3306)/app?parseTime=true",
+		SkipInitializeWithVersion: true,
+	}), &gorm.Config{
+		DryRun:                 true,
+		DisableAutomaticPing:   true,
+		SkipDefaultTransaction: true,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := db.Use(gormtenant.New(gormtenant.Config{})); err != nil {
+		log.Fatal(err)
+	}
+
+	var orders []Order
+	result := db.WithContext(ctx).Find(&orders)
+	if result.Error != nil {
+		log.Fatal(result.Error)
+	}
+
+	fmt.Println(result.Statement.SQL.String())
+	fmt.Println(result.Statement.Vars)
+}
 ```
 
-Minimal Ent query filter:
+## Adoption Examples
+
+Run the examples from the repository root:
+
+```bash
+go run ./examples/quickstart
+go run ./examples/gin-gorm
+go run ./examples/grpc
+go run ./examples/ent
+```
+
+- [examples/quickstart](examples/quickstart): minimal GORM create flow.
+- [examples/gin-gorm](examples/gin-gorm): Gin header resolver, tenant store validation, request context injection, and GORM query guard.
+- [examples/grpc](examples/grpc): unary gRPC interceptor that resolves tenant metadata and injects tenant context.
+- [examples/ent](examples/ent): Ent query and mutation filters using the storage-level interfaces generated builders expose.
+
+## Common Patterns
+
+Register the GORM plugin once on startup:
+
+```go
+if err := db.Use(gormtenant.New(gormtenant.Config{})); err != nil {
+	log.Fatal(err)
+}
+```
+
+Resolve tenants at the edge, then pass `context.Context` through application and data layers:
+
+```go
+tenantResolver := resolver.NewComposite(
+	resolver.NewHeaderContrib("", types.TenantIDStrategyString),
+)
+router.Use(gingotenancy.TenantMiddleware(tenantResolver, tenants))
+```
+
+Filter Ent queries before execution:
 
 ```go
 query := client.Order.Query()
-_ = enttenant.FilterQuery(ctx, query, enttenant.Config{})
-orders, _ := query.All(ctx)
+if err := enttenant.FilterQuery(ctx, query, enttenant.Config{}); err != nil {
+	return err
+}
+orders, err := query.All(ctx)
 ```
 
-For Ent mutations, register `enttenant.Hook(enttenant.Config{})` with the generated client.
+Register the Ent mutation hook with generated clients:
 
-See [examples/quickstart](examples/quickstart) for a compiling GORM example.
+```go
+client.Use(enttenant.Hook(enttenant.Config{}))
+```
+
+Protect gRPC handlers with tenant metadata:
+
+```go
+server := grpc.NewServer(
+	grpc.UnaryInterceptor(grpcgotenancy.TenantUnaryServerInterceptor(tenants)),
+)
+```
+
+Use explicit host context for host-wide operations:
+
+```go
+ctx := tenantctx.WithHost(context.Background())
+```
 
 ## Packages
 
