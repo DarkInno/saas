@@ -60,14 +60,11 @@ func TestGORMGuardsBlockUnscoped(t *testing.T) {
 	db := securityDryRunDB(t)
 	ctx := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "tenant-a"})
 
-	defer func() {
-		if recovered := recover(); !errors.Is(toError(recovered), gormtenant.ErrUnscopedRequiresHost) {
-			t.Fatalf("Unscoped panic = %v, want ErrUnscopedRequiresHost", recovered)
-		}
-	}()
-
 	var orders []guardedOrder
-	_ = db.WithContext(ctx).Unscoped().Find(&orders)
+	tx := db.WithContext(ctx).Unscoped().Find(&orders)
+	if !errors.Is(tx.Error, gormtenant.ErrUnscopedRequiresHost) {
+		t.Fatalf("Unscoped Find() error = %v, want ErrUnscopedRequiresHost", tx.Error)
+	}
 }
 
 func TestGORMRawRequiresHost(t *testing.T) {
@@ -108,13 +105,6 @@ func securityDryRunDB(t *testing.T) *gorm.DB {
 		t.Fatalf("db.Use() error = %v", err)
 	}
 	return db
-}
-
-func toError(value interface{}) error {
-	if err, ok := value.(error); ok {
-		return err
-	}
-	return nil
 }
 
 func assertSQLContains(t *testing.T, sql string, fragment string) {

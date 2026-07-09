@@ -9,6 +9,7 @@ import (
 )
 
 var _ Service = (*MemoryService)(nil)
+var _ PagedService = (*MemoryService)(nil)
 
 type MemoryService struct {
 	mu      sync.RWMutex
@@ -105,11 +106,18 @@ func (service *MemoryService) GetMember(ctx context.Context, tenantID types.Tena
 }
 
 func (service *MemoryService) ListMembers(ctx context.Context, tenantID types.TenantID) ([]Member, error) {
+	return service.ListMembersPage(ctx, tenantID, MemberListFilter{})
+}
+
+func (service *MemoryService) ListMembersPage(ctx context.Context, tenantID types.TenantID, filter MemberListFilter) ([]Member, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if tenantID == "" {
 		return nil, ErrInvalidUser
+	}
+	if err := filter.validate(); err != nil {
+		return nil, err
 	}
 
 	service.mu.RLock()
@@ -124,7 +132,7 @@ func (service *MemoryService) ListMembers(ctx context.Context, tenantID types.Te
 	sort.Slice(members, func(i, j int) bool {
 		return members[i].UserID < members[j].UserID
 	})
-	return members, nil
+	return pageMembers(members, filter), nil
 }
 
 func (service *MemoryService) RemoveMember(ctx context.Context, tenantID types.TenantID, userID string) error {

@@ -10,6 +10,7 @@ All notable changes to GoTenancy are documented in this file.
 - Added `database/sql` SQLStore implementations for `biz/audit` and `biz/rbac`.
 - Added `database/sql` SQLStore implementations for `biz/user`, `biz/identity`, and OIDC login state.
 - Added SMTP email delivery for `biz/notification`.
+- Added cursor-based list pagination for tenant, plan, subscription, audit, and membership stores; added an explicit sqlx tenant condition helper for complex SQL; and changed tenant-context GORM `Unscoped` access from panic to returned error.
 
 ## v0.1.5 - 2026-07-09
 

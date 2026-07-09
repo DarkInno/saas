@@ -34,6 +34,12 @@ type Store interface {
 	Delete(ctx context.Context, tenantID types.TenantID) error
 }
 
+// PagedStore extends Store with cursor-based subscription listing.
+type PagedStore interface {
+	Store
+	ListPage(ctx context.Context, filter PageFilter) ([]Subscription, error)
+}
+
 // ListFilter restricts subscription list queries.
 type ListFilter struct {
 	TenantIDs []types.TenantID
@@ -41,6 +47,17 @@ type ListFilter struct {
 	Statuses  []Status
 	Limit     int
 	Offset    int
+}
+
+// PageFilter restricts cursor-based subscription list queries.
+type PageFilter struct {
+	TenantIDs []types.TenantID
+	PlanIDs   []string
+	Statuses  []Status
+	Limit     int
+	Offset    int
+	// Cursor returns rows ordered after the tenant ID cursor.
+	Cursor types.TenantID
 }
 
 func (filter ListFilter) matches(subscription Subscription) bool {
@@ -110,6 +127,26 @@ func (filter ListFilter) validate() error {
 	return nil
 }
 
+func (filter PageFilter) validate() error {
+	if err := filter.listFilter().validate(); err != nil {
+		return err
+	}
+	if filter.Cursor != "" && filter.Offset > 0 {
+		return ErrInvalidListFilter
+	}
+	return nil
+}
+
+func (filter PageFilter) listFilter() ListFilter {
+	return ListFilter{
+		TenantIDs: filter.TenantIDs,
+		PlanIDs:   filter.PlanIDs,
+		Statuses:  filter.Statuses,
+		Limit:     filter.Limit,
+		Offset:    filter.Offset,
+	}
+}
+
 func pageSubscriptions(subscriptions []Subscription, filter ListFilter) []Subscription {
 	if filter.Offset >= len(subscriptions) {
 		return []Subscription{}
@@ -121,4 +158,18 @@ func pageSubscriptions(subscriptions []Subscription, filter ListFilter) []Subscr
 		end = start + filter.Limit
 	}
 	return subscriptions[start:end]
+}
+
+func seekSubscriptions(subscriptions []Subscription, cursor types.TenantID) []Subscription {
+	if cursor == "" {
+		return subscriptions
+	}
+	start := len(subscriptions)
+	for i, subscription := range subscriptions {
+		if subscription.TenantID > cursor {
+			start = i
+			break
+		}
+	}
+	return subscriptions[start:]
 }

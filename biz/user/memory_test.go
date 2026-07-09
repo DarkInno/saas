@@ -49,6 +49,35 @@ func TestMemoryServiceUserAndMembers(t *testing.T) {
 	}
 }
 
+func TestMemoryServiceListMembersPage(t *testing.T) {
+	ctx := context.Background()
+	service := NewMemoryService()
+	for _, user := range []User{
+		{ID: "u1", Email: "u1@example.com"},
+		{ID: "u2", Email: "u2@example.com"},
+		{ID: "u3", Email: "u3@example.com"},
+	} {
+		if err := service.CreateUser(ctx, user); err != nil {
+			t.Fatalf("CreateUser(%s) error = %v", user.ID, err)
+		}
+		if err := service.AddMember(ctx, Member{TenantID: "tenant-a", UserID: user.ID}); err != nil {
+			t.Fatalf("AddMember(%s) error = %v", user.ID, err)
+		}
+	}
+
+	page, err := service.ListMembersPage(ctx, "tenant-a", MemberListFilter{Cursor: "u1", Limit: 1})
+	if err != nil {
+		t.Fatalf("ListMembersPage() error = %v", err)
+	}
+	if len(page) != 1 || page[0].UserID != "u2" {
+		t.Fatalf("ListMembersPage() = %+v, want u2", page)
+	}
+
+	if _, err := service.ListMembersPage(ctx, "tenant-a", MemberListFilter{Limit: -1}); !errors.Is(err, ErrInvalidListFilter) {
+		t.Fatalf("ListMembersPage(invalid) error = %v, want ErrInvalidListFilter", err)
+	}
+}
+
 func TestMemoryServiceValidation(t *testing.T) {
 	ctx := context.Background()
 	service := NewMemoryService()

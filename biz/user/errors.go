@@ -10,6 +10,8 @@ var (
 	ErrMemberExists   = errors.New("gotenancy/user: member already exists")
 	ErrTenantMismatch = errors.New("gotenancy/user: tenant mismatch")
 
+	ErrInvalidListFilter = errors.New("gotenancy/user: invalid list filter")
+
 	ErrNilDB = errors.New("gotenancy/user: nil db")
 
 	ErrInvalidTableName = errors.New("gotenancy/user: invalid table name")

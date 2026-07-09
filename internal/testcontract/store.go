@@ -68,6 +68,21 @@ func RunStoreContract(t *testing.T, factory StoreFactory) {
 		t.Fatalf("List(invalid page) error = %v, want ErrInvalidListFilter", err)
 	}
 
+	paged, ok := st.(store.PagedStore)
+	if !ok {
+		t.Fatalf("store does not implement PagedStore")
+	}
+	cursorPage, err := paged.ListPage(ctx, store.PageFilter{Limit: 1, Cursor: tenantA.ID})
+	if err != nil {
+		t.Fatalf("ListPage(cursor) error = %v", err)
+	}
+	if len(cursorPage) != 1 || cursorPage[0].ID != tenantB.ID {
+		t.Fatalf("ListPage(cursor) = %+v, want tenantB", cursorPage)
+	}
+	if _, err := paged.ListPage(ctx, store.PageFilter{Limit: 1, Offset: 1, Cursor: tenantA.ID}); !errors.Is(err, store.ErrInvalidListFilter) {
+		t.Fatalf("ListPage(cursor with offset) error = %v, want ErrInvalidListFilter", err)
+	}
+
 	tenantA.Name = "Tenant A Updated"
 	if err := st.Update(ctx, tenantA); err != nil {
 		t.Fatalf("Update() error = %v", err)

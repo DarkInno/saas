@@ -16,7 +16,8 @@ func (plugin *Plugin) guardPreloads(tx *gorm.DB) {
 		return
 	}
 	if tx.Statement.Unscoped {
-		panic(ErrUnscopedRequiresHost)
+		addDBError(tx, ErrUnscopedRequiresHost)
+		return
 	}
 
 	scope := NewScopes(plugin.config).TenantScope(tx.Statement.Context)

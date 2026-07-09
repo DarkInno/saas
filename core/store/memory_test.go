@@ -78,11 +78,22 @@ func TestMemoryStoreListPagination(t *testing.T) {
 		t.Fatalf("List(page) = %+v, want tenant-b", page)
 	}
 
+	page, err = store.ListPage(ctx, PageFilter{Limit: 1, Cursor: "tenant-a"})
+	if err != nil {
+		t.Fatalf("ListPage(cursor) error = %v", err)
+	}
+	if len(page) != 1 || page[0].ID != "tenant-b" {
+		t.Fatalf("ListPage(cursor) = %+v, want tenant-b", page)
+	}
+
 	if _, err := store.List(ctx, ListFilter{Offset: 1}); !errors.Is(err, ErrInvalidListFilter) {
 		t.Fatalf("List(offset without limit) error = %v, want ErrInvalidListFilter", err)
 	}
 	if _, err := store.List(ctx, ListFilter{Limit: -1}); !errors.Is(err, ErrInvalidListFilter) {
 		t.Fatalf("List(negative limit) error = %v, want ErrInvalidListFilter", err)
+	}
+	if _, err := store.ListPage(ctx, PageFilter{Offset: 1, Limit: 1, Cursor: "tenant-a"}); !errors.Is(err, ErrInvalidListFilter) {
+		t.Fatalf("ListPage(cursor and offset) error = %v, want ErrInvalidListFilter", err)
 	}
 }
 

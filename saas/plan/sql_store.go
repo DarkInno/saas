@@ -31,6 +31,7 @@ const (
 )
 
 var _ Store = (*SQLStore)(nil)
+var _ PagedStore = (*SQLStore)(nil)
 
 // SQLStore persists SaaS plans through database/sql.
 //
@@ -138,14 +139,36 @@ func (store *SQLStore) List(ctx context.Context, filter ListFilter) (plans []Pla
 	if err := filter.validate(); err != nil {
 		return nil, err
 	}
+	return store.list(ctx, filter, "")
+}
 
+// ListPage returns plans after the cursor while preserving List filtering semantics.
+func (store *SQLStore) ListPage(ctx context.Context, filter PageFilter) (plans []Plan, err error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := filter.validate(); err != nil {
+		return nil, err
+	}
+	return store.list(ctx, filter.listFilter(), filter.Cursor)
+}
+
+func (store *SQLStore) list(ctx context.Context, filter ListFilter, cursor string) (plans []Plan, err error) {
 	query := fmt.Sprintf("SELECT id, name, features, quotas FROM %s", store.table)
 	args := make([]any, 0, len(filter.IDs)+2)
+	where := []string{}
 	if len(filter.IDs) > 0 {
-		query += " WHERE id IN (" + store.placeholders(len(filter.IDs), 1) + ")"
+		where = append(where, "id IN ("+store.placeholders(len(filter.IDs), len(args)+1)+")")
 		for _, id := range filter.IDs {
 			args = append(args, id)
 		}
+	}
+	if cursor != "" {
+		where = append(where, "id > "+store.placeholder(len(args)+1))
+		args = append(args, cursor)
+	}
+	if len(where) > 0 {
+		query += " WHERE " + strings.Join(where, " AND ")
 	}
 	query += " ORDER BY id"
 	if filter.Limit > 0 {

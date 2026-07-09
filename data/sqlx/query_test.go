@@ -36,6 +36,29 @@ func TestQueryAddsTenantFilter(t *testing.T) {
 	}
 }
 
+func TestTenantConditionForComplexSQL(t *testing.T) {
+	ctx := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "tenant-a"})
+
+	condition, err := TenantCondition(ctx, data.WithTenantField("orders.tenant_id"))
+	if err != nil {
+		t.Fatalf("TenantCondition() error = %v", err)
+	}
+	if condition.Expression != "orders.tenant_id = ?" {
+		t.Fatalf("TenantCondition().Expression = %q, want orders.tenant_id = ?", condition.Expression)
+	}
+	if len(condition.Args) != 1 || condition.Args[0] != "tenant-a" {
+		t.Fatalf("TenantCondition().Args = %#v, want tenant-a", condition.Args)
+	}
+
+	hostCondition, err := TenantCondition(tenantctx.WithHost(context.Background()))
+	if err != nil {
+		t.Fatalf("TenantCondition(host) error = %v", err)
+	}
+	if !hostCondition.Empty() {
+		t.Fatalf("TenantCondition(host) = %+v, want empty", hostCondition)
+	}
+}
+
 func TestQueryHostContext(t *testing.T) {
 	query, args, err := QueryWithArgs(tenantctx.WithHost(context.Background()), "SELECT * FROM orders WHERE status = ?", []any{"open"})
 	if err != nil {

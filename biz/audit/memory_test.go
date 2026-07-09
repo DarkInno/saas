@@ -32,6 +32,45 @@ func TestMemoryStoreRecordAndList(t *testing.T) {
 	}
 }
 
+func TestMemoryStoreListPageCursor(t *testing.T) {
+	ctx := context.Background()
+	base := time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
+	store := NewMemoryStore()
+	events := []Event{
+		{ID: "event-1", TenantID: "tenant-a", Action: "orders.create", Resource: "order:1", CreatedAt: base},
+		{ID: "event-2", TenantID: "tenant-a", Action: "orders.update", Resource: "order:1", CreatedAt: base},
+		{ID: "event-3", TenantID: "tenant-a", Action: "orders.delete", Resource: "order:1", CreatedAt: base.Add(time.Second)},
+	}
+	for _, event := range events {
+		if err := store.Record(ctx, event); err != nil {
+			t.Fatalf("Record(%s) error = %v", event.ID, err)
+		}
+	}
+
+	first, err := store.ListPage(ctx, "tenant-a", ListFilter{Limit: 2})
+	if err != nil {
+		t.Fatalf("ListPage(first) error = %v", err)
+	}
+	if len(first) != 2 || first[0].ID != "event-1" || first[1].ID != "event-2" {
+		t.Fatalf("ListPage(first) = %+v, want event-1/event-2", first)
+	}
+
+	next, err := store.ListPage(ctx, "tenant-a", ListFilter{Cursor: CursorFor(first[len(first)-1]), Limit: 2})
+	if err != nil {
+		t.Fatalf("ListPage(next) error = %v", err)
+	}
+	if len(next) != 1 || next[0].ID != "event-3" {
+		t.Fatalf("ListPage(next) = %+v, want event-3", next)
+	}
+
+	if _, err := store.ListPage(ctx, "tenant-a", ListFilter{Limit: -1}); !errors.Is(err, ErrInvalidListFilter) {
+		t.Fatalf("ListPage(invalid) error = %v, want ErrInvalidListFilter", err)
+	}
+	if _, err := store.ListPage(ctx, "tenant-a", ListFilter{Cursor: Cursor{CreatedAt: base}}); !errors.Is(err, ErrInvalidListFilter) {
+		t.Fatalf("ListPage(invalid cursor) error = %v, want ErrInvalidListFilter", err)
+	}
+}
+
 func TestMemoryStoreValidation(t *testing.T) {
 	if err := NewMemoryStore().Record(context.Background(), Event{}); !errors.Is(err, ErrInvalidEvent) {
 		t.Fatalf("Record(invalid) error = %v, want ErrInvalidEvent", err)

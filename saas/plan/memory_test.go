@@ -94,6 +94,14 @@ func TestMemoryServiceList(t *testing.T) {
 		t.Fatalf("List() = %+v, want first two sorted plans", got)
 	}
 
+	got, err = store.ListPage(ctx, PageFilter{Limit: 1, Cursor: "enterprise"})
+	if err != nil {
+		t.Fatalf("ListPage(cursor) error = %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "pro" {
+		t.Fatalf("ListPage(cursor) = %+v, want pro", got)
+	}
+
 	got, err = store.List(ctx, ListFilter{IDs: []string{"starter"}})
 	if err != nil {
 		t.Fatalf("List(by id) error = %v", err)
@@ -104,6 +112,9 @@ func TestMemoryServiceList(t *testing.T) {
 
 	if _, err := store.List(ctx, ListFilter{Offset: 1}); !errors.Is(err, ErrInvalidListFilter) {
 		t.Fatalf("List(invalid) error = %v, want ErrInvalidListFilter", err)
+	}
+	if _, err := store.ListPage(ctx, PageFilter{Offset: 1, Limit: 1, Cursor: "enterprise"}); !errors.Is(err, ErrInvalidListFilter) {
+		t.Fatalf("ListPage(cursor and offset) error = %v, want ErrInvalidListFilter", err)
 	}
 }
 

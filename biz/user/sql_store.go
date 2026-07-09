@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/DarkInno/gotenancy/core/types"
 	"github.com/DarkInno/gotenancy/internal/sqlutil"
@@ -34,6 +35,7 @@ const (
 )
 
 var _ Service = (*SQLStore)(nil)
+var _ PagedService = (*SQLStore)(nil)
 
 // SQLStore persists users and tenant memberships through database/sql.
 //
@@ -197,19 +199,37 @@ func (store *SQLStore) GetMember(ctx context.Context, tenantID types.TenantID, u
 
 // ListMembers returns tenant memberships ordered by user ID.
 func (store *SQLStore) ListMembers(ctx context.Context, tenantID types.TenantID) (members []Member, err error) {
+	return store.ListMembersPage(ctx, tenantID, MemberListFilter{})
+}
+
+// ListMembersPage returns a bounded page of tenant memberships ordered by user ID.
+func (store *SQLStore) ListMembersPage(ctx context.Context, tenantID types.TenantID, filter MemberListFilter) (members []Member, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if tenantID == "" {
 		return nil, ErrInvalidUser
 	}
+	if err := filter.validate(); err != nil {
+		return nil, err
+	}
 
+	args := []any{tenantID.String()}
+	where := []string{"tenant_id = " + store.placeholder(1)}
+	if filter.Cursor != "" {
+		where = append(where, "user_id > "+store.placeholder(len(args)+1))
+		args = append(args, filter.Cursor)
+	}
 	query := fmt.Sprintf(
-		"SELECT tenant_id, user_id, roles FROM %s WHERE tenant_id = %s ORDER BY user_id",
+		"SELECT tenant_id, user_id, roles FROM %s WHERE %s ORDER BY user_id",
 		store.membersTable,
-		store.placeholder(1),
+		strings.Join(where, " AND "),
 	)
-	rows, err := store.db.QueryContext(ctx, query, tenantID.String())
+	if filter.Limit > 0 {
+		query += " LIMIT " + store.placeholder(len(args)+1)
+		args = append(args, filter.Limit)
+	}
+	rows, err := store.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

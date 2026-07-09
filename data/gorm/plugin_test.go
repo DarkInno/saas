@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -128,18 +127,15 @@ func TestBulkCreateFillsTenantID(t *testing.T) {
 	}
 }
 
-func TestUnscopedPanicsInTenantContext(t *testing.T) {
+func TestUnscopedReportsErrorInTenantContext(t *testing.T) {
 	db := newDryRunDB(t)
 	ctx := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "tenant-a"})
 
-	defer func() {
-		if recovered := recover(); !errors.Is(toError(recovered), ErrUnscopedRequiresHost) {
-			t.Fatalf("panic = %v, want ErrUnscopedRequiresHost", recovered)
-		}
-	}()
-
 	var orders []tenantOrder
-	_ = db.WithContext(ctx).Unscoped().Find(&orders)
+	tx := db.WithContext(ctx).Unscoped().Find(&orders)
+	if !errors.Is(tx.Error, ErrUnscopedRequiresHost) {
+		t.Fatalf("Unscoped Find() error = %v, want ErrUnscopedRequiresHost", tx.Error)
+	}
 }
 
 func TestUpdateAndDeleteAddTenantCondition(t *testing.T) {
@@ -340,15 +336,4 @@ func assertVarsContain(t *testing.T, vars []any, want string) {
 		}
 	}
 	t.Fatalf("Vars = %#v, want value %q", vars, want)
-}
-
-func toError(value interface{}) error {
-	switch err := value.(type) {
-	case nil:
-		return nil
-	case error:
-		return err
-	default:
-		return fmt.Errorf("%v", value)
-	}
 }

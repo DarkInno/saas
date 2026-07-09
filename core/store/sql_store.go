@@ -31,6 +31,7 @@ const (
 )
 
 var _ Store = (*SQLStore)(nil)
+var _ PagedStore = (*SQLStore)(nil)
 
 // SQLStore persists tenant metadata through database/sql.
 //
@@ -120,14 +121,36 @@ func (store *SQLStore) List(ctx context.Context, filter ListFilter) (tenants []t
 	if err := filter.validate(); err != nil {
 		return nil, err
 	}
+	return store.list(ctx, filter, "")
+}
 
+// ListPage returns tenants after the cursor while preserving List filtering semantics.
+func (store *SQLStore) ListPage(ctx context.Context, filter PageFilter) (tenants []types.Tenant, err error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := filter.validate(); err != nil {
+		return nil, err
+	}
+	return store.list(ctx, filter.listFilter(), filter.Cursor)
+}
+
+func (store *SQLStore) list(ctx context.Context, filter ListFilter, cursor types.TenantID) (tenants []types.Tenant, err error) {
 	query := fmt.Sprintf("SELECT id, name, status, plan_id, config FROM %s", store.table)
-	args := make([]any, 0, len(filter.Statuses))
+	where := []string{}
+	args := make([]any, 0, len(filter.Statuses)+3)
 	if len(filter.Statuses) > 0 {
-		query += " WHERE status IN (" + store.placeholders(len(filter.Statuses), len(args)+1) + ")"
+		where = append(where, "status IN ("+store.placeholders(len(filter.Statuses), len(args)+1)+")")
 		for _, status := range filter.Statuses {
 			args = append(args, string(status))
 		}
+	}
+	if cursor != "" {
+		where = append(where, "id > "+store.placeholder(len(args)+1))
+		args = append(args, cursor.String())
+	}
+	if len(where) > 0 {
+		query += " WHERE " + strings.Join(where, " AND ")
 	}
 	query += " ORDER BY id"
 	if filter.Limit > 0 {

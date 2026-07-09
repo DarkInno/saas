@@ -10,6 +10,7 @@ import (
 )
 
 var _ Store = (*MemoryStore)(nil)
+var _ PagedStore = (*MemoryStore)(nil)
 
 type MemoryStore struct {
 	mu     sync.RWMutex
@@ -56,11 +57,18 @@ func (store *MemoryStore) Record(ctx context.Context, event Event) error {
 }
 
 func (store *MemoryStore) List(ctx context.Context, tenantID types.TenantID) ([]Event, error) {
+	return store.ListPage(ctx, tenantID, ListFilter{})
+}
+
+func (store *MemoryStore) ListPage(ctx context.Context, tenantID types.TenantID, filter ListFilter) ([]Event, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if tenantID == "" {
 		return nil, ErrInvalidEvent
+	}
+	if err := filter.validate(); err != nil {
+		return nil, err
 	}
 
 	store.mu.RLock()
@@ -68,14 +76,17 @@ func (store *MemoryStore) List(ctx context.Context, tenantID types.TenantID) ([]
 
 	events := []Event{}
 	for _, event := range store.events {
-		if event.TenantID == tenantID {
+		if event.TenantID == tenantID && eventAfterCursor(event, filter.Cursor) {
 			events = append(events, cloneEvent(event))
 		}
 	}
 	sort.Slice(events, func(i, j int) bool {
+		if events[i].CreatedAt.Equal(events[j].CreatedAt) {
+			return events[i].ID < events[j].ID
+		}
 		return events[i].CreatedAt.Before(events[j].CreatedAt)
 	})
-	return events, nil
+	return pageEvents(events, filter), nil
 }
 
 func cloneEvent(event Event) Event {

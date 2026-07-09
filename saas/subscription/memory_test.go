@@ -155,6 +155,14 @@ func TestMemoryServiceStoreCRUDAndList(t *testing.T) {
 		t.Fatalf("List(limit) = %+v, want tenant-a first", list)
 	}
 
+	list, err = store.ListPage(ctx, PageFilter{Limit: 1, Cursor: "tenant-a"})
+	if err != nil {
+		t.Fatalf("ListPage(cursor) error = %v", err)
+	}
+	if len(list) != 1 || list[0].TenantID != "tenant-b" {
+		t.Fatalf("ListPage(cursor) = %+v, want tenant-b", list)
+	}
+
 	if err := store.Delete(ctx, "tenant-b"); err != nil {
 		t.Fatalf("Delete() error = %v", err)
 	}
@@ -163,6 +171,9 @@ func TestMemoryServiceStoreCRUDAndList(t *testing.T) {
 	}
 	if _, err := store.List(ctx, ListFilter{Statuses: []Status{"paused"}}); !errors.Is(err, ErrInvalidListFilter) {
 		t.Fatalf("List(invalid status) error = %v, want ErrInvalidListFilter", err)
+	}
+	if _, err := store.ListPage(ctx, PageFilter{Offset: 1, Limit: 1, Cursor: "tenant-a"}); !errors.Is(err, ErrInvalidListFilter) {
+		t.Fatalf("ListPage(cursor and offset) error = %v, want ErrInvalidListFilter", err)
 	}
 }
 

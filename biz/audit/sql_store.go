@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DarkInno/gotenancy/core/types"
@@ -31,6 +32,7 @@ const (
 )
 
 var _ Store = (*SQLStore)(nil)
+var _ PagedStore = (*SQLStore)(nil)
 
 // SQLStore persists audit events through database/sql.
 //
@@ -127,19 +129,42 @@ func (store *SQLStore) Record(ctx context.Context, event Event) error {
 
 // List returns audit events for a tenant ordered by creation time.
 func (store *SQLStore) List(ctx context.Context, tenantID types.TenantID) (events []Event, err error) {
+	return store.ListPage(ctx, tenantID, ListFilter{})
+}
+
+// ListPage returns a bounded page of audit events for a tenant ordered by creation time and ID.
+func (store *SQLStore) ListPage(ctx context.Context, tenantID types.TenantID, filter ListFilter) (events []Event, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if tenantID == "" {
 		return nil, ErrInvalidEvent
 	}
+	if err := filter.validate(); err != nil {
+		return nil, err
+	}
 
+	args := []any{tenantID.String()}
+	where := []string{"tenant_id = " + store.placeholder(1)}
+	if !filter.Cursor.empty() {
+		where = append(where, fmt.Sprintf(
+			"(created_at > %s OR (created_at = %s AND id > %s))",
+			store.placeholder(len(args)+1),
+			store.placeholder(len(args)+2),
+			store.placeholder(len(args)+3),
+		))
+		args = append(args, filter.Cursor.CreatedAt, filter.Cursor.CreatedAt, filter.Cursor.ID)
+	}
 	query := fmt.Sprintf(
-		"SELECT id, tenant_id, actor_id, action, resource, created_at, metadata FROM %s WHERE tenant_id = %s ORDER BY created_at",
+		"SELECT id, tenant_id, actor_id, action, resource, created_at, metadata FROM %s WHERE %s ORDER BY created_at, id",
 		store.table,
-		store.placeholder(1),
+		strings.Join(where, " AND "),
 	)
-	rows, err := store.db.QueryContext(ctx, query, tenantID.String())
+	if filter.Limit > 0 {
+		query += " LIMIT " + store.placeholder(len(args)+1)
+		args = append(args, filter.Limit)
+	}
+	rows, err := store.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

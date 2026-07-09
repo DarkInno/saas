@@ -24,7 +24,8 @@ func (plugin *Plugin) addTenantCondition(tx *gorm.DB) {
 		return
 	}
 	if tx.Statement.Unscoped {
-		panic(ErrUnscopedRequiresHost)
+		addDBError(tx, ErrUnscopedRequiresHost)
+		return
 	}
 
 	condition := filter.Condition()

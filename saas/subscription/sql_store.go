@@ -32,6 +32,7 @@ const (
 )
 
 var _ Store = (*SQLStore)(nil)
+var _ PagedStore = (*SQLStore)(nil)
 
 // SQLStore persists tenant subscriptions through database/sql.
 //
@@ -147,7 +148,21 @@ func (store *SQLStore) List(ctx context.Context, filter ListFilter) (subscriptio
 	if err := filter.validate(); err != nil {
 		return nil, err
 	}
+	return store.list(ctx, filter, "")
+}
 
+// ListPage returns subscriptions after the cursor while preserving List filtering semantics.
+func (store *SQLStore) ListPage(ctx context.Context, filter PageFilter) (subscriptions []Subscription, err error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := filter.validate(); err != nil {
+		return nil, err
+	}
+	return store.list(ctx, filter.listFilter(), filter.Cursor)
+}
+
+func (store *SQLStore) list(ctx context.Context, filter ListFilter, cursor types.TenantID) (subscriptions []Subscription, err error) {
 	args := []any{}
 	where := []string{}
 	if len(filter.TenantIDs) > 0 {
@@ -167,6 +182,10 @@ func (store *SQLStore) List(ctx context.Context, filter ListFilter) (subscriptio
 		for _, status := range filter.Statuses {
 			args = append(args, string(status))
 		}
+	}
+	if cursor != "" {
+		where = append(where, "tenant_id > "+store.placeholder(len(args)+1))
+		args = append(args, cursor.String())
 	}
 
 	query := fmt.Sprintf("SELECT tenant_id, plan_id, status, start_date, end_date, current_period_end, grace_period_end FROM %s", store.table)

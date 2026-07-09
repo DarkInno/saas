@@ -8,6 +8,7 @@ import (
 
 var _ Service = (*MemoryService)(nil)
 var _ Store = (*MemoryService)(nil)
+var _ PagedStore = (*MemoryService)(nil)
 
 // MemoryStore is kept as a Store-oriented name for MemoryService.
 type MemoryStore = MemoryService
@@ -74,7 +75,21 @@ func (service *MemoryService) List(ctx context.Context, filter ListFilter) ([]Pl
 	if err := filter.validate(); err != nil {
 		return nil, err
 	}
+	return service.list(filter, "")
+}
 
+// ListPage returns plans after the cursor while preserving List filtering semantics.
+func (service *MemoryService) ListPage(ctx context.Context, filter PageFilter) ([]Plan, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := filter.validate(); err != nil {
+		return nil, err
+	}
+	return service.list(filter.listFilter(), filter.Cursor)
+}
+
+func (service *MemoryService) list(filter ListFilter, cursor string) ([]Plan, error) {
 	service.mu.RLock()
 	defer service.mu.RUnlock()
 
@@ -87,6 +102,7 @@ func (service *MemoryService) List(ctx context.Context, filter ListFilter) ([]Pl
 	sort.Slice(plans, func(i, j int) bool {
 		return plans[i].ID < plans[j].ID
 	})
+	plans = seekPlans(plans, cursor)
 	return pagePlans(plans, filter), nil
 }
 

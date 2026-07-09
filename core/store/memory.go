@@ -10,6 +10,7 @@ import (
 )
 
 var _ Store = (*MemoryStore)(nil)
+var _ PagedStore = (*MemoryStore)(nil)
 
 // MemoryStore is a thread-safe in-memory tenant metadata store.
 type MemoryStore struct {
@@ -51,7 +52,21 @@ func (store *MemoryStore) List(ctx context.Context, filter ListFilter) ([]types.
 	if err := filter.validate(); err != nil {
 		return nil, err
 	}
+	return store.list(filter, "")
+}
 
+// ListPage returns tenants after the cursor while preserving List filtering semantics.
+func (store *MemoryStore) ListPage(ctx context.Context, filter PageFilter) ([]types.Tenant, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := filter.validate(); err != nil {
+		return nil, err
+	}
+	return store.list(filter.listFilter(), filter.Cursor)
+}
+
+func (store *MemoryStore) list(filter ListFilter, cursor types.TenantID) ([]types.Tenant, error) {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
 
@@ -65,6 +80,7 @@ func (store *MemoryStore) List(ctx context.Context, filter ListFilter) ([]types.
 	sort.Slice(tenants, func(i, j int) bool {
 		return tenants[i].ID < tenants[j].ID
 	})
+	tenants = seekTenants(tenants, cursor)
 	return pageTenants(tenants, filter), nil
 }
 
