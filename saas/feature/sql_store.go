@@ -234,7 +234,7 @@ func (store *SQLStore) getFlag(ctx context.Context, scope string, ownerID string
 	return flag, nil
 }
 
-func (store *SQLStore) loadFlags(ctx context.Context, scope string, ownerID string) (map[string]Flag, error) {
+func (store *SQLStore) loadFlags(ctx context.Context, scope string, ownerID string) (flags map[string]Flag, err error) {
 	query := fmt.Sprintf(
 		"SELECT key, enabled, config FROM %s WHERE scope = %s AND owner_id = %s ORDER BY key",
 		store.table,
@@ -245,9 +245,11 @@ func (store *SQLStore) loadFlags(ctx context.Context, scope string, ownerID stri
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		err = errors.Join(err, rows.Close())
+	}()
 
-	flags := map[string]Flag{}
+	flags = map[string]Flag{}
 	for rows.Next() {
 		flag, err := scanFlag(rows)
 		if err != nil {
