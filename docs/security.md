@@ -32,6 +32,7 @@
 - Identity providers must be explicitly allow-listed before an assertion is accepted.
 - Email verification is required by default. Disable it only when the upstream IdP assertion is otherwise trusted, such as a controlled SAML connection.
 - External subjects are linked by tenant, provider, and subject to prevent cross-tenant identity reuse from bypassing membership checks.
+- Existing users are matched only when the assertion email equals the stored user email, and existing tenant member roles are not overwritten during sign-in.
 - Generated user IDs are stable opaque hashes of provider and subject, avoiding raw provider subject leakage in normal user IDs.
 
 ## Cache Isolation

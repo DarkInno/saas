@@ -108,3 +108,52 @@ func TestServiceAuthenticateDetectsIdentityConflict(t *testing.T) {
 		t.Fatalf("Authenticate(conflict) error = %v, want ErrIdentityConflict", err)
 	}
 }
+
+func TestServiceAuthenticateRejectsExistingUserEmailMismatch(t *testing.T) {
+	ctx := context.Background()
+	users := user.NewMemoryService()
+	if err := users.CreateUser(ctx, user.User{ID: "u1", Email: "owner@example.com"}); err != nil {
+		t.Fatalf("CreateUser() error = %v", err)
+	}
+
+	service := NewService(users, WithProviders(GoogleOIDC()))
+	_, err := service.Authenticate(ctx, Assertion{
+		TenantID:      "tenant-a",
+		Provider:      ProviderGoogle,
+		Subject:       "google-subject",
+		UserID:        "u1",
+		Email:         "attacker@example.com",
+		EmailVerified: true,
+	})
+	if !errors.Is(err, ErrIdentityConflict) {
+		t.Fatalf("Authenticate(email mismatch) error = %v, want ErrIdentityConflict", err)
+	}
+}
+
+func TestServiceAuthenticateUsesStoredRolesForExistingMember(t *testing.T) {
+	ctx := context.Background()
+	users := user.NewMemoryService()
+	if err := users.CreateUser(ctx, user.User{ID: "u1", Email: "user@example.com"}); err != nil {
+		t.Fatalf("CreateUser() error = %v", err)
+	}
+	if err := users.AddMember(ctx, user.Member{TenantID: "tenant-a", UserID: "u1", Roles: []string{"owner"}}); err != nil {
+		t.Fatalf("AddMember() error = %v", err)
+	}
+
+	service := NewService(users, WithProviders(GoogleOIDC()))
+	session, err := service.Authenticate(ctx, Assertion{
+		TenantID:      "tenant-a",
+		Provider:      ProviderGoogle,
+		Subject:       "google-subject",
+		UserID:        "u1",
+		Email:         "user@example.com",
+		EmailVerified: true,
+		Roles:         []string{"member"},
+	})
+	if err != nil {
+		t.Fatalf("Authenticate() error = %v", err)
+	}
+	if len(session.Roles) != 1 || session.Roles[0] != "owner" {
+		t.Fatalf("Authenticate() roles = %#v, want stored owner role", session.Roles)
+	}
+}

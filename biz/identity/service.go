@@ -93,8 +93,15 @@ func (service *Service) Authenticate(ctx context.Context, assertion Assertion) (
 	if len(roles) == 0 {
 		roles = cloneStrings(service.defaultRoles)
 	}
-	if err := service.users.AddMember(ctx, user.Member{TenantID: assertion.TenantID, UserID: userID, Roles: roles}); err != nil && !errors.Is(err, user.ErrMemberExists) {
-		return Session{}, err
+	if err := service.users.AddMember(ctx, user.Member{TenantID: assertion.TenantID, UserID: userID, Roles: roles}); err != nil {
+		if !errors.Is(err, user.ErrMemberExists) {
+			return Session{}, err
+		}
+		member, err := service.users.GetMember(ctx, assertion.TenantID, userID)
+		if err != nil {
+			return Session{}, err
+		}
+		roles = member.Roles
 	}
 
 	if err := service.store.Link(ctx, Link{
@@ -154,8 +161,8 @@ func (service *Service) userID(ctx context.Context, assertion Assertion) (string
 }
 
 func (service *Service) ensureUser(ctx context.Context, userID string, assertion Assertion) error {
-	if _, err := service.users.GetUser(ctx, userID); err == nil {
-		return nil
+	if current, err := service.users.GetUser(ctx, userID); err == nil {
+		return validateExistingUser(current, assertion)
 	} else if !errors.Is(err, user.ErrUserNotFound) {
 		return err
 	}
@@ -166,9 +173,20 @@ func (service *Service) ensureUser(ctx context.Context, userID string, assertion
 		Name:  assertion.Name,
 	})
 	if errors.Is(err, user.ErrUserExists) {
-		return nil
+		current, getErr := service.users.GetUser(ctx, userID)
+		if getErr != nil {
+			return getErr
+		}
+		return validateExistingUser(current, assertion)
 	}
 	return err
+}
+
+func validateExistingUser(current user.User, assertion Assertion) error {
+	if current.Email != assertion.Email {
+		return ErrIdentityConflict
+	}
+	return nil
 }
 
 func DefaultUserID(provider ProviderKey, subject string) string {
