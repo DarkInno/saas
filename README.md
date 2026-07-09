@@ -181,7 +181,8 @@ ctx := tenantctx.WithHost(context.Background())
 - `saas/quota`: quota checking and atomic consumption.
 - `saas/feature`: plan defaults plus tenant-level feature overrides.
 - `saas/onboarding`: tenant onboarding flow across tenant, plan, subscription, feature, quota, audit, and notification services.
-- `biz/identity`: post-auth tenant user mapping for verified Google, GitHub, Microsoft, Magic Link, SAML, or generic OIDC assertions.
+- `biz/identity`: post-auth tenant user mapping for verified external identity assertions.
+- `biz/identity/oidc`: OIDC authorization-code bridge with PKCE, state, nonce, ID-token verification, and assertion output.
 - `web/*`: tenant middleware and guards for net/http, Gin, Echo, Fiber, and Kratos.
 - `rpc/grpc`: gRPC unary and stream tenant interceptors.
 - `migration`: tenant column and index planning.
@@ -191,27 +192,24 @@ ctx := tenantctx.WithHost(context.Background())
 
 ## Post-Auth Identity Mapping
 
-`biz/identity` is not an out-of-the-box OAuth/SSO implementation. It provides provider metadata presets and maps already verified identity assertions into tenant users and memberships. Applications still need an IdP or protocol library such as Stytch, Auth0, WorkOS, go-oidc, or a SAML toolkit for callbacks, token validation, Magic Link delivery, and SAML validation:
+`biz/identity` maps verified external identities into tenant users and memberships. `biz/identity/oidc` adds a standard OIDC authorization-code bridge for callback processing and ID-token verification. It is still not a full IAM platform: application sessions, account screens, Magic Link delivery, SAML validation, MFA, and WebAuthn remain application or IdP responsibilities.
 
 ```go
-users := user.NewMemoryService()
-identityService := identity.NewService(
-	users,
-	identity.WithProviders(identity.GoogleOIDC(), identity.GitHubOAuth(), identity.MicrosoftEntraID("organizations")),
-	identity.WithDefaultRoles("member"),
-)
-
-session, err := identityService.Authenticate(ctx, identity.Assertion{
-	TenantID:      "tenant-a",
-	Provider:      identity.ProviderGoogle,
-	Subject:       "google-subject",
-	Email:         "user@example.com",
-	Name:          "User Example",
-	EmailVerified: true,
+oidcClient, err := oidc.New(ctx, oidc.Config{
+	Provider:    identity.GoogleOIDC(),
+	ClientID:    "client-id",
+	RedirectURL: "https://app.example.com/auth/callback",
 })
+
+login, err := oidcClient.Begin()
+result, err := oidcClient.HandleCallback(ctx, request, login, "tenant-a", "member")
+
+users := user.NewMemoryService()
+identityService := identity.NewService(users, identity.WithProviders(identity.GoogleOIDC()))
+session, err := identityService.Authenticate(ctx, result.Assertion)
 ```
 
-Provider metadata presets include Google OIDC, GitHub OAuth, Microsoft Entra ID OIDC, generic OIDC, generic Magic Link, and generic SAML. Providers must be explicitly allow-listed before assertions are accepted.
+Applications must store `login.State`, `login.Nonce`, and `login.PKCEVerifier` in their own secure session layer before redirecting the browser.
 
 ## Verification
 

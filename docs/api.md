@@ -51,6 +51,7 @@ Public package overview.
 | Package | Purpose |
 |---|---|
 | `biz/identity` | Post-auth tenant user mapping for verified external identity assertions, plus provider metadata presets. |
+| `biz/identity/oidc` | OIDC authorization-code bridge with PKCE, state, nonce, ID-token verification, optional userinfo, and assertion output. |
 | `biz/user` | Users and tenant members. |
 | `biz/rbac` | Tenant-scoped roles and permission checks. |
 | `biz/audit` | Tenant-scoped audit event store. |

@@ -25,6 +25,7 @@ Independent database and hybrid isolation models are not part of the current API
 | Fiber | `github.com/gofiber/fiber/v2` v2.52.13 |
 | Kratos | `github.com/go-kratos/kratos/v2` v2.9.2 |
 | gRPC | `google.golang.org/grpc` v1.75.1 |
+| OIDC | `github.com/coreos/go-oidc/v3` v3.15.0 and `golang.org/x/oauth2` v0.30.0 |
 
 `core/` remains free of GORM, Ent, sqlx, Redis, and web-framework imports.
 

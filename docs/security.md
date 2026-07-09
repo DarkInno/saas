@@ -26,10 +26,14 @@
 - HTTP, Gin, Echo, Fiber, Kratos, and gRPC tenant middleware reject non-active tenants by default.
 - Active-status guards are also available for trusted contexts created outside middleware.
 
-## Post-Auth Identity Mapping
+## Identity And OIDC
 
-- `biz/identity` is not a complete OAuth/SSO implementation. It accepts only already verified provider assertions; OAuth/OIDC callback handling, token validation, magic-link delivery, and SAML XML validation stay in the application or IdP SDK layer.
+- `biz/identity` accepts only already verified provider assertions.
+- `biz/identity/oidc` handles standard OIDC authorization-code callbacks, token exchange, ID-token verification, nonce checks, and PKCE verifier use. Application sessions, Magic Link delivery, SAML XML validation, MFA, and WebAuthn stay outside this package.
+- Applications must persist and validate callback state by passing the expected `State`, `Nonce`, and `PKCEVerifier` back into the OIDC callback API.
+- ID tokens are verified against provider keys, issuer, audience, expiry, nonce, and `at_hash` when present.
 - Identity providers must be explicitly allow-listed before an assertion is accepted.
+- OIDC issuer validation is strict; avoid multi-tenant issuer shortcuts such as Microsoft `common` unless the application owns the issuer policy explicitly.
 - Email verification is required by default. Disable it only when the upstream IdP assertion is otherwise trusted, such as a controlled SAML connection.
 - External subjects are linked by tenant, provider, and subject to prevent cross-tenant identity reuse from bypassing membership checks.
 - Existing users are matched only when the assertion email equals the stored user email, and existing tenant member roles are not overwritten during sign-in.

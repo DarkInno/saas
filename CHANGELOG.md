@@ -7,6 +7,7 @@ All notable changes to GoTenancy are documented in this file.
 - Added subscription renewal, direct expiration, grace-period-based `ExpireDue` scans, and current-period tracking.
 - Added `saas/onboarding` to coordinate tenant creation, plan validation, subscription creation, feature/quota initialization, audit records, welcome notifications, and activation.
 - Added `biz/identity` as a post-auth identity mapping layer with provider metadata presets and verified identity-to-tenant user/member linking.
+- Added `biz/identity/oidc` for standard OIDC authorization-code callback processing, PKCE, ID-token verification, optional userinfo loading, and assertion output.
 
 ## v0.1.4 - 2026-07-09
 
