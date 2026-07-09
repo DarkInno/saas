@@ -8,6 +8,10 @@ import (
 )
 
 var _ Service = (*MemoryService)(nil)
+var _ Enforcer = (*MemoryService)(nil)
+
+// MemoryEnforcer is kept as an Enforcer-oriented name for MemoryService.
+type MemoryEnforcer = MemoryService
 
 type MemoryService struct {
 	mu    sync.RWMutex
@@ -23,11 +27,15 @@ func NewMemoryService() *MemoryService {
 	return &MemoryService{roles: map[roleKey]Role{}}
 }
 
+func NewMemoryEnforcer() *MemoryEnforcer {
+	return NewMemoryService()
+}
+
 func (service *MemoryService) CreateRole(ctx context.Context, role Role) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if role.TenantID == "" || role.Key == "" {
+	if err := validateRole(role); err != nil {
 		return ErrInvalidRole
 	}
 
@@ -80,6 +88,10 @@ func (service *MemoryService) DeleteRole(ctx context.Context, tenantID types.Ten
 }
 
 func (service *MemoryService) Authorize(ctx context.Context, tenantID types.TenantID, roles []string, permission Permission) error {
+	return service.Enforce(ctx, tenantID, roles, permission)
+}
+
+func (service *MemoryService) Enforce(ctx context.Context, tenantID types.TenantID, roles []string, permission Permission) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -95,10 +107,8 @@ func (service *MemoryService) Authorize(ctx context.Context, tenantID types.Tena
 		if !ok {
 			continue
 		}
-		for _, candidate := range role.Permissions {
-			if candidate == permission {
-				return nil
-			}
+		if role.HasPermission(permission) {
+			return nil
 		}
 	}
 	return ErrPermissionDeny
@@ -109,4 +119,16 @@ func cloneRole(role Role) Role {
 	copy(permissions, role.Permissions)
 	role.Permissions = permissions
 	return role
+}
+
+func validateRole(role Role) error {
+	if role.TenantID == "" || role.Key == "" {
+		return ErrInvalidRole
+	}
+	for _, permission := range role.Permissions {
+		if permission == "" {
+			return ErrInvalidRole
+		}
+	}
+	return nil
 }

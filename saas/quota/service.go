@@ -18,6 +18,9 @@ func NewService(store Store) *Service {
 
 // Check returns current usage and whether amount can be consumed.
 func (service *Service) Check(ctx context.Context, limit Limit, amount int64) (Usage, error) {
+	if service == nil || service.store == nil {
+		return Usage{}, ErrNilStore
+	}
 	if err := validateLimit(limit); err != nil {
 		return Usage{}, err
 	}
@@ -44,6 +47,9 @@ func (service *Service) Check(ctx context.Context, limit Limit, amount int64) (U
 
 // Consume increments usage when the limit allows it.
 func (service *Service) Consume(ctx context.Context, limit Limit, amount int64) (Usage, error) {
+	if service == nil || service.store == nil {
+		return Usage{}, ErrNilStore
+	}
 	if err := validateLimit(limit); err != nil {
 		return Usage{}, err
 	}
@@ -66,6 +72,9 @@ func (service *Service) Consume(ctx context.Context, limit Limit, amount int64) 
 
 // Reset clears usage for a tenant resource.
 func (service *Service) Reset(ctx context.Context, tenantID types.TenantID, resource string, period Period) error {
+	if service == nil || service.store == nil {
+		return ErrNilStore
+	}
 	return service.store.Reset(ctx, tenantID, resource, period)
 }
 

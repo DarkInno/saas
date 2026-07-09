@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
@@ -9,6 +10,10 @@ import (
 )
 
 var _ LifecycleService = (*MemoryService)(nil)
+var _ Store = (*MemoryService)(nil)
+
+// MemoryStore is kept as a Store-oriented name for MemoryService.
+type MemoryStore = MemoryService
 
 // Option configures MemoryService.
 type Option func(*MemoryService)
@@ -59,6 +64,30 @@ func NewMemoryService(opts ...Option) *MemoryService {
 		}
 	}
 	return service
+}
+
+// NewMemoryStore creates an empty subscription store.
+func NewMemoryStore(opts ...Option) *MemoryStore {
+	return NewMemoryService(opts...)
+}
+
+// Create inserts a subscription.
+func (service *MemoryService) Create(ctx context.Context, subscription Subscription) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := validateSubscription(subscription); err != nil {
+		return err
+	}
+
+	service.mu.Lock()
+	defer service.mu.Unlock()
+
+	if _, ok := service.subscriptions[subscription.TenantID]; ok {
+		return ErrSubscriptionAlreadyExists
+	}
+	service.subscriptions[subscription.TenantID] = cloneSubscription(subscription)
+	return nil
 }
 
 // Subscribe creates an active subscription for a tenant.
@@ -259,6 +288,68 @@ func (service *MemoryService) Get(ctx context.Context, tenantID types.TenantID) 
 	return cloneSubscription(subscription), nil
 }
 
+// List returns subscriptions matching filter.
+func (service *MemoryService) List(ctx context.Context, filter ListFilter) ([]Subscription, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := filter.validate(); err != nil {
+		return nil, err
+	}
+
+	service.mu.RLock()
+	defer service.mu.RUnlock()
+
+	subscriptions := make([]Subscription, 0, len(service.subscriptions))
+	for _, subscription := range service.subscriptions {
+		if filter.matches(subscription) {
+			subscriptions = append(subscriptions, cloneSubscription(subscription))
+		}
+	}
+	sort.Slice(subscriptions, func(i, j int) bool {
+		return subscriptions[i].TenantID < subscriptions[j].TenantID
+	})
+	return pageSubscriptions(subscriptions, filter), nil
+}
+
+// Update replaces a subscription.
+func (service *MemoryService) Update(ctx context.Context, subscription Subscription) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := validateSubscription(subscription); err != nil {
+		return err
+	}
+
+	service.mu.Lock()
+	defer service.mu.Unlock()
+
+	if _, ok := service.subscriptions[subscription.TenantID]; !ok {
+		return ErrSubscriptionNotFound
+	}
+	service.subscriptions[subscription.TenantID] = cloneSubscription(subscription)
+	return nil
+}
+
+// Delete removes a subscription by tenant ID.
+func (service *MemoryService) Delete(ctx context.Context, tenantID types.TenantID) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if tenantID == "" {
+		return ErrInvalidSubscription
+	}
+
+	service.mu.Lock()
+	defer service.mu.Unlock()
+
+	if _, ok := service.subscriptions[tenantID]; !ok {
+		return ErrSubscriptionNotFound
+	}
+	delete(service.subscriptions, tenantID)
+	return nil
+}
+
 func (service *MemoryService) changePlan(ctx context.Context, tenantID types.TenantID, planID string, action string) (Subscription, error) {
 	if err := ctx.Err(); err != nil {
 		return Subscription{}, err
@@ -334,4 +425,11 @@ func cloneTimePtr(value *time.Time) *time.Time {
 	}
 	cloned := *value
 	return &cloned
+}
+
+func validateSubscription(subscription Subscription) error {
+	if subscription.TenantID == "" || subscription.PlanID == "" || !validStatus(subscription.Status) || subscription.StartDate.IsZero() {
+		return ErrInvalidSubscription
+	}
+	return nil
 }

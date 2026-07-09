@@ -176,10 +176,10 @@ ctx := tenantctx.WithHost(context.Background())
 - `data/ent`: Ent selector predicate, query filter, mutation filter, and hook APIs.
 - `data/sqlx`: tenant-filtered APIs for simple single-table SELECT/UPDATE/DELETE statements.
 - `saas/tenant`: tenant lifecycle state machine.
-- `saas/plan`: plan CRUD.
-- `saas/subscription`: subscription lifecycle, renewal, expiration, grace-period handling, and billing hook.
-- `saas/quota`: quota checking and atomic consumption.
-- `saas/feature`: plan defaults plus tenant-level feature overrides.
+- `saas/plan`: plan Store, memory implementation, and `database/sql` SQLStore.
+- `saas/subscription`: subscription lifecycle, renewal, expiration, grace-period handling, billing hook, Store, memory implementation, and `database/sql` SQLStore.
+- `saas/quota`: quota checking, atomic consumption, reset, memory implementation, and `database/sql` SQLStore.
+- `saas/feature`: plan defaults, tenant-level feature overrides, memory implementation, and `database/sql` SQLStore.
 - `saas/onboarding`: tenant onboarding flow across tenant, plan, subscription, feature, quota, audit, and notification services.
 - `biz/identity`: post-auth tenant user mapping for verified external identity assertions.
 - `biz/identity/oidc`: OIDC authorization-code bridge with PKCE, state, nonce, ID-token verification, one-time login state storage, and assertion output.
@@ -188,7 +188,7 @@ ctx := tenantctx.WithHost(context.Background())
 - `migration`: tenant column and index planning.
 - `cache`: tenant-scoped cache wrapper and memory adapters.
 - `obs`: observability fields and redaction.
-- `biz/*`: identity, user, RBAC, audit, and notification modules.
+- `biz/*`: identity, user, RBAC enforcer, audit store, and notification modules.
 
 ## Post-Auth Identity Mapping
 

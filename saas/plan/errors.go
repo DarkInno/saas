@@ -11,4 +11,16 @@ var (
 
 	// ErrInvalidPlan reports invalid plan metadata.
 	ErrInvalidPlan = errors.New("gotenancy/plan: invalid plan")
+
+	// ErrInvalidListFilter reports an invalid plan list filter.
+	ErrInvalidListFilter = errors.New("gotenancy/plan: invalid list filter")
+
+	// ErrNilDB reports that a SQL store was created with a nil database handle.
+	ErrNilDB = errors.New("gotenancy/plan: nil db")
+
+	// ErrInvalidTableName reports an unsafe SQL table name.
+	ErrInvalidTableName = errors.New("gotenancy/plan: invalid table name")
+
+	// ErrUnsupportedSQLDialect reports an unsupported SQLStore dialect.
+	ErrUnsupportedSQLDialect = errors.New("gotenancy/plan: unsupported sql dialect")
 )

@@ -2,7 +2,9 @@ package plan
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"reflect"
 	"testing"
 )
 
@@ -75,6 +77,36 @@ func TestMemoryServiceCopiesPlan(t *testing.T) {
 	}
 }
 
+func TestMemoryServiceList(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	for _, id := range []string{"pro", "starter", "enterprise"} {
+		if err := store.Create(ctx, testPlan(id)); err != nil {
+			t.Fatalf("Create(%q) error = %v", id, err)
+		}
+	}
+
+	got, err := store.List(ctx, ListFilter{Limit: 2})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(got) != 2 || got[0].ID != "enterprise" || got[1].ID != "pro" {
+		t.Fatalf("List() = %+v, want first two sorted plans", got)
+	}
+
+	got, err = store.List(ctx, ListFilter{IDs: []string{"starter"}})
+	if err != nil {
+		t.Fatalf("List(by id) error = %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "starter" {
+		t.Fatalf("List(by id) = %+v, want starter", got)
+	}
+
+	if _, err := store.List(ctx, ListFilter{Offset: 1}); !errors.Is(err, ErrInvalidListFilter) {
+		t.Fatalf("List(invalid) error = %v, want ErrInvalidListFilter", err)
+	}
+}
+
 func TestMemoryServiceValidation(t *testing.T) {
 	ctx := context.Background()
 	service := NewMemoryService()
@@ -91,6 +123,58 @@ func TestMemoryServiceValidation(t *testing.T) {
 		if err := service.Create(ctx, plan); !errors.Is(err, ErrInvalidPlan) {
 			t.Fatalf("Create(invalid %d) error = %v, want ErrInvalidPlan", i, err)
 		}
+	}
+}
+
+func TestNewSQLStoreValidationAndCodec(t *testing.T) {
+	if _, err := NewSQLStore(nil); !errors.Is(err, ErrNilDB) {
+		t.Fatalf("NewSQLStore(nil) error = %v, want ErrNilDB", err)
+	}
+
+	db := &sql.DB{}
+	store, err := NewSQLStore(db)
+	if err != nil {
+		t.Fatalf("NewSQLStore() error = %v", err)
+	}
+	if store.table != DefaultSQLTableName {
+		t.Fatalf("default table = %q, want %q", store.table, DefaultSQLTableName)
+	}
+
+	store, err = NewSQLStore(db, WithTableName("public.saas_plans"), WithSQLDialect(SQLDialectPostgres))
+	if err != nil {
+		t.Fatalf("NewSQLStore(custom) error = %v", err)
+	}
+	if store.table != "public.saas_plans" || store.dialect != SQLDialectPostgres {
+		t.Fatalf("SQLStore = %+v, want custom table and postgres dialect", store)
+	}
+	if got := store.placeholders(3, 2); got != "$2, $3, $4" {
+		t.Fatalf("postgres placeholders = %q, want $2, $3, $4", got)
+	}
+
+	if _, err := NewSQLStore(db, WithTableName("saas_plans;drop")); !errors.Is(err, ErrInvalidTableName) {
+		t.Fatalf("NewSQLStore(unsafe table) error = %v, want ErrInvalidTableName", err)
+	}
+	if _, err := NewSQLStore(db, WithSQLDialect("oracle")); !errors.Is(err, ErrUnsupportedSQLDialect) {
+		t.Fatalf("NewSQLStore(unsupported dialect) error = %v, want ErrUnsupportedSQLDialect", err)
+	}
+
+	features, quotas, err := marshalPlanParts(testPlan("starter"))
+	if err != nil {
+		t.Fatalf("marshalPlanParts() error = %v", err)
+	}
+	decodedFeatures, err := unmarshalFeatures(features)
+	if err != nil {
+		t.Fatalf("unmarshalFeatures() error = %v", err)
+	}
+	if !reflect.DeepEqual(decodedFeatures, testPlan("starter").Features) {
+		t.Fatalf("unmarshalFeatures() = %#v, want plan features", decodedFeatures)
+	}
+	decodedQuotas, err := unmarshalQuotas(quotas)
+	if err != nil {
+		t.Fatalf("unmarshalQuotas() error = %v", err)
+	}
+	if !reflect.DeepEqual(decodedQuotas, testPlan("starter").Quotas) {
+		t.Fatalf("unmarshalQuotas() = %#v, want plan quotas", decodedQuotas)
 	}
 }
 

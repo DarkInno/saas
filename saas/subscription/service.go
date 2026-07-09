@@ -24,3 +24,101 @@ type LifecycleService interface {
 	Expire(ctx context.Context, tenantID types.TenantID) (Subscription, error)
 	ExpireDue(ctx context.Context) ([]Subscription, error)
 }
+
+// Store persists tenant subscriptions.
+type Store interface {
+	Create(ctx context.Context, subscription Subscription) error
+	Get(ctx context.Context, tenantID types.TenantID) (Subscription, error)
+	List(ctx context.Context, filter ListFilter) ([]Subscription, error)
+	Update(ctx context.Context, subscription Subscription) error
+	Delete(ctx context.Context, tenantID types.TenantID) error
+}
+
+// ListFilter restricts subscription list queries.
+type ListFilter struct {
+	TenantIDs []types.TenantID
+	PlanIDs   []string
+	Statuses  []Status
+	Limit     int
+	Offset    int
+}
+
+func (filter ListFilter) matches(subscription Subscription) bool {
+	if len(filter.TenantIDs) > 0 {
+		matched := false
+		for _, tenantID := range filter.TenantIDs {
+			if subscription.TenantID == tenantID {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+
+	if len(filter.PlanIDs) > 0 {
+		matched := false
+		for _, planID := range filter.PlanIDs {
+			if subscription.PlanID == planID {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+
+	if len(filter.Statuses) > 0 {
+		matched := false
+		for _, status := range filter.Statuses {
+			if subscription.Status == status {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	return true
+}
+
+func (filter ListFilter) validate() error {
+	if filter.Limit < 0 || filter.Offset < 0 {
+		return ErrInvalidListFilter
+	}
+	if filter.Offset > 0 && filter.Limit == 0 {
+		return ErrInvalidListFilter
+	}
+	for _, tenantID := range filter.TenantIDs {
+		if tenantID == "" {
+			return ErrInvalidListFilter
+		}
+	}
+	for _, planID := range filter.PlanIDs {
+		if planID == "" {
+			return ErrInvalidListFilter
+		}
+	}
+	for _, status := range filter.Statuses {
+		if !validStatus(status) {
+			return ErrInvalidListFilter
+		}
+	}
+	return nil
+}
+
+func pageSubscriptions(subscriptions []Subscription, filter ListFilter) []Subscription {
+	if filter.Offset >= len(subscriptions) {
+		return []Subscription{}
+	}
+
+	start := filter.Offset
+	end := len(subscriptions)
+	if filter.Limit > 0 && start+filter.Limit < end {
+		end = start + filter.Limit
+	}
+	return subscriptions[start:end]
+}

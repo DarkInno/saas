@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -110,6 +111,61 @@ func TestMemoryServiceGetCopiesSubscription(t *testing.T) {
 	}
 }
 
+func TestMemoryServiceStoreCRUDAndList(t *testing.T) {
+	ctx := context.Background()
+	start := time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
+	store := NewMemoryStore()
+	subscription := Subscription{TenantID: "tenant-b", PlanID: "pro", Status: StatusActive, StartDate: start}
+
+	if err := store.Create(ctx, subscription); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if err := store.Create(ctx, subscription); !errors.Is(err, ErrSubscriptionAlreadyExists) {
+		t.Fatalf("Create(duplicate) error = %v, want ErrSubscriptionAlreadyExists", err)
+	}
+	if err := store.Create(ctx, Subscription{TenantID: "tenant-a", PlanID: "starter", Status: StatusExpired, StartDate: start}); err != nil {
+		t.Fatalf("Create(tenant-a) error = %v", err)
+	}
+
+	subscription.PlanID = "enterprise"
+	if err := store.Update(ctx, subscription); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	got, err := store.Get(ctx, "tenant-b")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if got.PlanID != "enterprise" {
+		t.Fatalf("Get().PlanID = %q, want enterprise", got.PlanID)
+	}
+
+	list, err := store.List(ctx, ListFilter{Statuses: []Status{StatusActive}})
+	if err != nil {
+		t.Fatalf("List(active) error = %v", err)
+	}
+	if len(list) != 1 || list[0].TenantID != "tenant-b" {
+		t.Fatalf("List(active) = %+v, want tenant-b only", list)
+	}
+
+	list, err = store.List(ctx, ListFilter{Limit: 1})
+	if err != nil {
+		t.Fatalf("List(limit) error = %v", err)
+	}
+	if len(list) != 1 || list[0].TenantID != "tenant-a" {
+		t.Fatalf("List(limit) = %+v, want tenant-a first", list)
+	}
+
+	if err := store.Delete(ctx, "tenant-b"); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	if _, err := store.Get(ctx, "tenant-b"); !errors.Is(err, ErrSubscriptionNotFound) {
+		t.Fatalf("Get(deleted) error = %v, want ErrSubscriptionNotFound", err)
+	}
+	if _, err := store.List(ctx, ListFilter{Statuses: []Status{"paused"}}); !errors.Is(err, ErrInvalidListFilter) {
+		t.Fatalf("List(invalid status) error = %v, want ErrInvalidListFilter", err)
+	}
+}
+
 func TestMemoryServiceExpireDueWithGraceAndRenew(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
@@ -209,5 +265,41 @@ func TestMemoryServiceValidationAndMissing(t *testing.T) {
 	}
 	if _, err := service.Unsubscribe(ctx, "missing"); !errors.Is(err, ErrSubscriptionNotFound) {
 		t.Fatalf("Unsubscribe(missing) error = %v, want ErrSubscriptionNotFound", err)
+	}
+	if err := service.Create(ctx, Subscription{TenantID: "tenant-a", PlanID: "starter", Status: "paused", StartDate: time.Now()}); !errors.Is(err, ErrInvalidSubscription) {
+		t.Fatalf("Create(invalid status) error = %v, want ErrInvalidSubscription", err)
+	}
+}
+
+func TestNewSQLStoreValidation(t *testing.T) {
+	if _, err := NewSQLStore(nil); !errors.Is(err, ErrNilDB) {
+		t.Fatalf("NewSQLStore(nil) error = %v, want ErrNilDB", err)
+	}
+
+	db := &sql.DB{}
+	store, err := NewSQLStore(db)
+	if err != nil {
+		t.Fatalf("NewSQLStore() error = %v", err)
+	}
+	if store.table != DefaultSQLTableName {
+		t.Fatalf("default table = %q, want %q", store.table, DefaultSQLTableName)
+	}
+
+	store, err = NewSQLStore(db, WithTableName("public.saas_subscriptions"), WithSQLDialect(SQLDialectPostgres))
+	if err != nil {
+		t.Fatalf("NewSQLStore(custom) error = %v", err)
+	}
+	if store.table != "public.saas_subscriptions" || store.dialect != SQLDialectPostgres {
+		t.Fatalf("SQLStore = %+v, want custom table and postgres dialect", store)
+	}
+	if got := store.placeholders(2, 3); got != "$3, $4" {
+		t.Fatalf("postgres placeholders = %q, want $3, $4", got)
+	}
+
+	if _, err := NewSQLStore(db, WithTableName("saas_subscriptions;drop")); !errors.Is(err, ErrInvalidTableName) {
+		t.Fatalf("NewSQLStore(unsafe table) error = %v, want ErrInvalidTableName", err)
+	}
+	if _, err := NewSQLStore(db, WithSQLDialect("oracle")); !errors.Is(err, ErrUnsupportedSQLDialect) {
+		t.Fatalf("NewSQLStore(unsupported dialect) error = %v, want ErrUnsupportedSQLDialect", err)
 	}
 }

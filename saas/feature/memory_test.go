@@ -2,6 +2,7 @@ package feature
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 )
@@ -89,5 +90,38 @@ func TestMemoryStoreValidationAndMissing(t *testing.T) {
 	}
 	if _, err := store.Resolve(ctx, "tenant-a", "starter", "missing"); !errors.Is(err, ErrFeatureNotFound) {
 		t.Fatalf("Resolve(missing) error = %v, want ErrFeatureNotFound", err)
+	}
+}
+
+func TestNewSQLStoreValidation(t *testing.T) {
+	if _, err := NewSQLStore(nil); !errors.Is(err, ErrNilDB) {
+		t.Fatalf("NewSQLStore(nil) error = %v, want ErrNilDB", err)
+	}
+
+	db := &sql.DB{}
+	store, err := NewSQLStore(db)
+	if err != nil {
+		t.Fatalf("NewSQLStore() error = %v", err)
+	}
+	if store.table != DefaultSQLTableName {
+		t.Fatalf("default table = %q, want %q", store.table, DefaultSQLTableName)
+	}
+
+	store, err = NewSQLStore(db, WithTableName("public.saas_feature_flags"), WithSQLDialect(SQLDialectPostgres))
+	if err != nil {
+		t.Fatalf("NewSQLStore(custom) error = %v", err)
+	}
+	if store.table != "public.saas_feature_flags" || store.dialect != SQLDialectPostgres {
+		t.Fatalf("SQLStore = %+v, want custom table and postgres dialect", store)
+	}
+	if got := store.placeholders(2, 4); got != "$4, $5" {
+		t.Fatalf("postgres placeholders = %q, want $4, $5", got)
+	}
+
+	if _, err := NewSQLStore(db, WithTableName("saas_feature_flags;drop")); !errors.Is(err, ErrInvalidTableName) {
+		t.Fatalf("NewSQLStore(unsafe table) error = %v, want ErrInvalidTableName", err)
+	}
+	if _, err := NewSQLStore(db, WithSQLDialect("oracle")); !errors.Is(err, ErrUnsupportedSQLDialect) {
+		t.Fatalf("NewSQLStore(unsupported dialect) error = %v, want ErrUnsupportedSQLDialect", err)
 	}
 }

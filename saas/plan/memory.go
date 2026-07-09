@@ -2,10 +2,15 @@ package plan
 
 import (
 	"context"
+	"sort"
 	"sync"
 )
 
 var _ Service = (*MemoryService)(nil)
+var _ Store = (*MemoryService)(nil)
+
+// MemoryStore is kept as a Store-oriented name for MemoryService.
+type MemoryStore = MemoryService
 
 // MemoryService is a thread-safe in-memory plan service.
 type MemoryService struct {
@@ -16,6 +21,11 @@ type MemoryService struct {
 // NewMemoryService creates an empty plan service.
 func NewMemoryService() *MemoryService {
 	return &MemoryService{plans: map[string]Plan{}}
+}
+
+// NewMemoryStore creates an empty plan store.
+func NewMemoryStore() *MemoryStore {
+	return NewMemoryService()
 }
 
 // Create inserts a plan.
@@ -54,6 +64,30 @@ func (service *MemoryService) Get(ctx context.Context, id string) (Plan, error) 
 		return Plan{}, ErrPlanNotFound
 	}
 	return clonePlan(plan), nil
+}
+
+// List returns plans matching filter.
+func (service *MemoryService) List(ctx context.Context, filter ListFilter) ([]Plan, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := filter.validate(); err != nil {
+		return nil, err
+	}
+
+	service.mu.RLock()
+	defer service.mu.RUnlock()
+
+	plans := make([]Plan, 0, len(service.plans))
+	for _, plan := range service.plans {
+		if filter.matches(plan) {
+			plans = append(plans, clonePlan(plan))
+		}
+	}
+	sort.Slice(plans, func(i, j int) bool {
+		return plans[i].ID < plans[j].ID
+	})
+	return pagePlans(plans, filter), nil
 }
 
 // Update replaces a plan.

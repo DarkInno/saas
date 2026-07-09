@@ -25,10 +25,10 @@ Public package overview.
 | Package | Purpose |
 |---|---|
 | `saas/tenant` | Tenant lifecycle manager with create, activate, suspend, restore, soft-delete, and host-only hard-delete. |
-| `saas/plan` | Plan, feature, quota metadata and in-memory CRUD service. |
-| `saas/subscription` | Subscription lifecycle with active/cancelled/expired states, renewal, grace-period expiration scans, and billing hook. |
-| `saas/quota` | In-memory quota checking, atomic consuming, and reset. |
-| `saas/feature` | Plan default features plus tenant override resolution. |
+| `saas/plan` | Plan, feature, and quota metadata with Store, memory implementation, list filters, and `database/sql` SQLStore. |
+| `saas/subscription` | Subscription lifecycle with active/cancelled/expired states, renewal, grace-period expiration scans, billing hook, Store, memory implementation, and `database/sql` SQLStore. |
+| `saas/quota` | Quota checking, atomic consuming, reset, memory implementation, nil-store guards, and `database/sql` SQLStore. |
+| `saas/feature` | Plan default features plus tenant override resolution with memory implementation and `database/sql` SQLStore. |
 | `saas/onboarding` | Cross-module tenant onboarding that creates a tenant, validates the plan, creates the subscription, initializes features and quotas, records audit metadata, sends an optional welcome notification, and activates the tenant. |
 
 ## Integration
@@ -53,7 +53,7 @@ Public package overview.
 | `biz/identity` | Post-auth tenant user mapping for verified external identity assertions, plus provider metadata presets. |
 | `biz/identity/oidc` | OIDC authorization-code bridge with PKCE, state, nonce, ID-token verification, optional userinfo, one-time login state storage, and assertion output. |
 | `biz/user` | Users and tenant members. |
-| `biz/rbac` | Tenant-scoped roles and permission checks. |
+| `biz/rbac` | Tenant-scoped roles, `Role.HasPermission`, permission checks, and simple memory Enforcer. |
 | `biz/audit` | Tenant-scoped audit event store. |
 | `biz/notification` | Tenant-scoped notification interface and memory notifier. |
 
