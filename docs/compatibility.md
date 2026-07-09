@@ -4,7 +4,7 @@
 
 - Module language version: Go `1.24`.
 - `go.mod` records this as `go 1.24.0`.
-- CI test jobs should cover Go `1.24.x` and Go `1.26.x`; lint and vulnerability scans run on Go `1.26.x`.
+- CI test jobs should cover Go `1.24.x` and Go `1.26.x`; lint and vulnerability scans run on a patched Go `1.26.5+` toolchain.
 
 Go `1.23` support was dropped because the patched `github.com/go-jose/go-jose/v4` release required by the OIDC path requires Go `1.24.0`.
 
