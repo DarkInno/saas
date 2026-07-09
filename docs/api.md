@@ -26,9 +26,10 @@ Public package overview.
 |---|---|
 | `saas/tenant` | Tenant lifecycle manager with create, activate, suspend, restore, soft-delete, and host-only hard-delete. |
 | `saas/plan` | Plan, feature, quota metadata and in-memory CRUD service. |
-| `saas/subscription` | Subscription lifecycle and billing hook. |
+| `saas/subscription` | Subscription lifecycle with active/cancelled/expired states, renewal, grace-period expiration scans, and billing hook. |
 | `saas/quota` | In-memory quota checking, atomic consuming, and reset. |
 | `saas/feature` | Plan default features plus tenant override resolution. |
+| `saas/onboarding` | Cross-module tenant onboarding that creates a tenant, validates the plan, creates the subscription, initializes features and quotas, records audit metadata, sends an optional welcome notification, and activates the tenant. |
 
 ## Integration
 

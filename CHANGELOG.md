@@ -4,6 +4,9 @@ All notable changes to GoTenancy are documented in this file.
 
 ## Unreleased
 
+- Added subscription renewal, direct expiration, grace-period-based `ExpireDue` scans, and current-period tracking.
+- Added `saas/onboarding` to coordinate tenant creation, plan validation, subscription creation, feature/quota initialization, audit records, welcome notifications, and activation.
+
 ## v0.1.4 - 2026-07-09
 
 - Restored ORM, framework, gRPC, and example packages to the main Go module so `go get github.com/DarkInno/gotenancy` provides the full package surface.

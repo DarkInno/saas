@@ -8,9 +8,11 @@ import (
 
 // Subscription binds a tenant to a plan.
 type Subscription struct {
-	TenantID  types.TenantID
-	PlanID    string
-	Status    Status
-	StartDate time.Time
-	EndDate   *time.Time
+	TenantID         types.TenantID
+	PlanID           string
+	Status           Status
+	StartDate        time.Time
+	CurrentPeriodEnd *time.Time
+	GracePeriodEnd   *time.Time
+	EndDate          *time.Time
 }

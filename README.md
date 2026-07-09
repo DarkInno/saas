@@ -177,9 +177,10 @@ ctx := tenantctx.WithHost(context.Background())
 - `data/sqlx`: tenant-filtered APIs for simple single-table SELECT/UPDATE/DELETE statements.
 - `saas/tenant`: tenant lifecycle state machine.
 - `saas/plan`: plan CRUD.
-- `saas/subscription`: subscription lifecycle and billing hook.
+- `saas/subscription`: subscription lifecycle, renewal, expiration, grace-period handling, and billing hook.
 - `saas/quota`: quota checking and atomic consumption.
 - `saas/feature`: plan defaults plus tenant-level feature overrides.
+- `saas/onboarding`: tenant onboarding flow across tenant, plan, subscription, feature, quota, audit, and notification services.
 - `web/*`: tenant middleware and guards for net/http, Gin, Echo, Fiber, and Kratos.
 - `rpc/grpc`: gRPC unary and stream tenant interceptors.
 - `migration`: tenant column and index planning.
@@ -214,7 +215,7 @@ GOTENANCY_MYSQL_DSN='<mysql-dsn>' go test ./data/gorm -run TestMySQLIntegrationE
 ```text
 core/          Tenant context, resolver, store, and types
 data/          Data filtering contracts and adapters
-saas/          Tenant lifecycle, plan, subscription, quota, and feature modules
+saas/          Tenant lifecycle, plan, subscription, quota, feature, and onboarding modules
 web/           Web framework and net/http integration
 migration/     Tenant schema migration planning
 cache/         Tenant-aware cache abstractions
