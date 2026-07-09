@@ -98,12 +98,15 @@ func (store *MemoryLoginStore) SaveLogin(ctx context.Context, login Login) error
 	if store.logins == nil {
 		store.logins = map[string]Login{}
 	}
-	store.cleanupExpiredLocked(now)
+	store.cleanupExpiredLocked(now, false)
 	if _, ok := store.logins[login.State]; ok {
 		return ErrDuplicateParam
 	}
 	if len(store.logins) >= store.effectiveMaxPending() {
-		return ErrLoginStoreFull
+		store.cleanupExpiredLocked(now, true)
+		if len(store.logins) >= store.effectiveMaxPending() {
+			return ErrLoginStoreFull
+		}
 	}
 	store.logins[login.State] = login
 	return nil
@@ -133,8 +136,8 @@ func (store *MemoryLoginStore) ConsumeLogin(ctx context.Context, state string) (
 	return login, nil
 }
 
-func (store *MemoryLoginStore) cleanupExpiredLocked(now time.Time) {
-	if !store.lastCleanup.IsZero() && now.Sub(store.lastCleanup) < time.Minute {
+func (store *MemoryLoginStore) cleanupExpiredLocked(now time.Time, force bool) {
+	if !force && !store.lastCleanup.IsZero() && now.Sub(store.lastCleanup) < time.Minute {
 		return
 	}
 	for state, login := range store.logins {

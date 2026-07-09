@@ -465,6 +465,39 @@ func TestAuthURLWithExplicitValues(t *testing.T) {
 	}
 }
 
+func TestAuthURLProtectsNonceAndPKCEFromOverrideOptions(t *testing.T) {
+	client := testClient(t, testServerOptions{})
+	verifier := oauth2.GenerateVerifier()
+
+	authorizationURL, err := client.AuthURL(
+		"state",
+		"nonce",
+		verifier,
+		oauth2.SetAuthURLParam("nonce", "bad-nonce"),
+		oauth2.SetAuthURLParam("code_challenge", "bad-challenge"),
+		oauth2.SetAuthURLParam("code_challenge_method", "plain"),
+	)
+	if err != nil {
+		t.Fatalf("AuthURL() error = %v", err)
+	}
+
+	parsed, err := url.Parse(authorizationURL)
+	if err != nil {
+		t.Fatalf("Parse auth URL error = %v", err)
+	}
+	challenge := sha256.Sum256([]byte(verifier))
+	values := parsed.Query()
+	if values.Get("nonce") != "nonce" {
+		t.Fatalf("nonce = %q, want protected nonce", values.Get("nonce"))
+	}
+	if values.Get("code_challenge") != base64.RawURLEncoding.EncodeToString(challenge[:]) {
+		t.Fatalf("code_challenge = %q, want verifier challenge", values.Get("code_challenge"))
+	}
+	if values.Get("code_challenge_method") != "S256" {
+		t.Fatalf("code_challenge_method = %q, want S256", values.Get("code_challenge_method"))
+	}
+}
+
 func TestHandleLoginCallbackConsumesStoredRequest(t *testing.T) {
 	ctx := context.Background()
 	server := newOIDCTestServer(t, testServerOptions{})
@@ -548,6 +581,41 @@ func TestMemoryLoginStoreRejectsOverflow(t *testing.T) {
 		if state == "state-2" && err != ErrLoginStoreFull {
 			t.Fatalf("SaveLogin(second) error = %v, want ErrLoginStoreFull", err)
 		}
+	}
+}
+
+func TestMemoryLoginStoreReclaimsExpiredLoginWhenFull(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now()
+	store := NewMemoryLoginStore(time.Minute, WithMaxPendingLogins(1))
+	store.now = func() time.Time { return now }
+
+	err := store.SaveLogin(ctx, Login{
+		AuthRequest: AuthRequest{
+			URL:          "https://issuer.example.com/authorize",
+			State:        "expired-state",
+			Nonce:        "expired-nonce",
+			PKCEVerifier: oauth2.GenerateVerifier(),
+		},
+		TenantID:  "tenant-a",
+		ExpiresAt: now.Add(time.Millisecond),
+	})
+	if err != nil {
+		t.Fatalf("SaveLogin(expired seed) error = %v", err)
+	}
+
+	now = now.Add(2 * time.Millisecond)
+	err = store.SaveLogin(ctx, Login{
+		AuthRequest: AuthRequest{
+			URL:          "https://issuer.example.com/authorize",
+			State:        "fresh-state",
+			Nonce:        "fresh-nonce",
+			PKCEVerifier: oauth2.GenerateVerifier(),
+		},
+		TenantID: "tenant-a",
+	})
+	if err != nil {
+		t.Fatalf("SaveLogin(fresh) error = %v, want expired login reclaimed", err)
 	}
 }
 

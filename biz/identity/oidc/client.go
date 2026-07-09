@@ -137,10 +137,8 @@ func (client *Client) AuthURL(state string, nonce string, verifier string, opts 
 		return "", ErrInvalidConfig
 	}
 
-	options := append([]oauth2.AuthCodeOption{
-		oidclib.Nonce(nonce),
-		oauth2.S256ChallengeOption(verifier),
-	}, opts...)
+	options := append([]oauth2.AuthCodeOption{}, opts...)
+	options = append(options, oidclib.Nonce(nonce), oauth2.S256ChallengeOption(verifier))
 	return client.oauth2.AuthCodeURL(state, options...), nil
 }
 
