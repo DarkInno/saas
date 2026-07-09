@@ -62,6 +62,46 @@ func TestTenantMiddlewareRejectsMissingTenant(t *testing.T) {
 	}
 }
 
+func TestTenantStatusGuard(t *testing.T) {
+	app := fiber.New()
+	app.Get("/missing", TenantStatusGuard(), func(c *fiber.Ctx) error {
+		return c.SendString("unexpected")
+	})
+	app.Get("/inactive", injectFiberTenant(types.TenantStatusSuspended), TenantStatusGuard(), func(c *fiber.Ctx) error {
+		return c.SendString("unexpected")
+	})
+	app.Get("/active", injectFiberTenant(types.TenantStatusActive), TenantStatusGuard(), func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "/missing", nil)
+	response, err := app.Test(request)
+	if err != nil {
+		t.Fatalf("app.Test(missing) error = %v", err)
+	}
+	if response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("missing tenant status = %d, want 401", response.StatusCode)
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/inactive", nil)
+	response, err = app.Test(request)
+	if err != nil {
+		t.Fatalf("app.Test(inactive) error = %v", err)
+	}
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("inactive tenant status = %d, want 403", response.StatusCode)
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/active", nil)
+	response, err = app.Test(request)
+	if err != nil {
+		t.Fatalf("app.Test(active) error = %v", err)
+	}
+	if response.StatusCode != http.StatusOK || bodyString(t, response) != "ok" {
+		t.Fatalf("active tenant response = %d, want 200 ok", response.StatusCode)
+	}
+}
+
 func TestHostGuardMiddleware(t *testing.T) {
 	app := fiber.New()
 	app.Get("/host", HostGuardMiddleware(), func(c *fiber.Ctx) error {
@@ -113,4 +153,14 @@ func bodyString(t *testing.T, response *http.Response) string {
 		t.Fatalf("ReadAll() error = %v", err)
 	}
 	return string(body)
+}
+
+func injectFiberTenant(status types.TenantStatus) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		c.SetUserContext(tenantctx.WithTenant(c.UserContext(), types.Tenant{
+			ID:     "tenant-a",
+			Status: status,
+		}))
+		return c.Next()
+	}
 }

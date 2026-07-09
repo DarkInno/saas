@@ -64,6 +64,37 @@ func TestTenantMiddlewareRejectsMissingTenant(t *testing.T) {
 	}
 }
 
+func TestTenantStatusGuard(t *testing.T) {
+	router := echo.New()
+	router.GET("/missing", func(c echo.Context) error {
+		return c.String(http.StatusOK, "unexpected")
+	}, TenantStatusGuard())
+	router.GET("/inactive", func(c echo.Context) error {
+		return c.String(http.StatusOK, "unexpected")
+	}, injectEchoTenant(types.TenantStatusSuspended), TenantStatusGuard())
+	router.GET("/active", func(c echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	}, injectEchoTenant(types.TenantStatusActive), TenantStatusGuard())
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/missing", nil))
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("missing tenant status = %d, want 401", recorder.Code)
+	}
+
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/inactive", nil))
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("inactive tenant status = %d, want 403", recorder.Code)
+	}
+
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/active", nil))
+	if recorder.Code != http.StatusOK || recorder.Body.String() != "ok" {
+		t.Fatalf("active tenant response = %d %q, want 200 ok", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestHostGuardMiddleware(t *testing.T) {
 	router := echo.New()
 	router.GET("/host", func(c echo.Context) error {
@@ -89,5 +120,18 @@ func TestHostGuardMiddleware(t *testing.T) {
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/host-ok", nil))
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("host guard with host status = %d, want 200", recorder.Code)
+	}
+}
+
+func injectEchoTenant(status types.TenantStatus) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			request := c.Request()
+			c.SetRequest(request.WithContext(tenantctx.WithTenant(request.Context(), types.Tenant{
+				ID:     "tenant-a",
+				Status: status,
+			})))
+			return next(c)
+		}
 	}
 }

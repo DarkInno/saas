@@ -93,6 +93,52 @@ func TestTenantStreamServerInterceptorInjectsTenant(t *testing.T) {
 	}
 }
 
+func TestTenantStreamServerInterceptorRejectsMissingTenant(t *testing.T) {
+	interceptor := TenantStreamServerInterceptor(store.NewMemoryStore())
+	err := interceptor(nil, &mockServerStream{ctx: context.Background()}, &grpc.StreamServerInfo{}, func(srv any, stream grpc.ServerStream) error {
+		return nil
+	})
+	if code := status.Code(err); code != codes.Unauthenticated {
+		t.Fatalf("code = %s, want %s", code, codes.Unauthenticated)
+	}
+}
+
+func TestTenantStatusStreamServerInterceptor(t *testing.T) {
+	interceptor := TenantStatusStreamServerInterceptor()
+
+	err := interceptor(nil, &mockServerStream{ctx: context.Background()}, &grpc.StreamServerInfo{}, func(srv any, stream grpc.ServerStream) error {
+		return nil
+	})
+	if code := status.Code(err); code != codes.Unauthenticated {
+		t.Fatalf("missing tenant code = %s, want %s", code, codes.Unauthenticated)
+	}
+
+	err = interceptor(nil, &mockServerStream{ctx: tenantctx.WithTenant(context.Background(), types.Tenant{
+		ID:     "tenant-a",
+		Status: types.TenantStatusSuspended,
+	})}, &grpc.StreamServerInfo{}, func(srv any, stream grpc.ServerStream) error {
+		return nil
+	})
+	if code := status.Code(err); code != codes.PermissionDenied {
+		t.Fatalf("inactive tenant code = %s, want %s", code, codes.PermissionDenied)
+	}
+
+	called := false
+	err = interceptor(nil, &mockServerStream{ctx: tenantctx.WithTenant(context.Background(), types.Tenant{
+		ID:     "tenant-a",
+		Status: types.TenantStatusActive,
+	})}, &grpc.StreamServerInfo{}, func(srv any, stream grpc.ServerStream) error {
+		called = true
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("active tenant stream error = %v", err)
+	}
+	if !called {
+		t.Fatal("active tenant stream handler was not called")
+	}
+}
+
 func TestHostUnaryServerInterceptor(t *testing.T) {
 	interceptor := HostUnaryServerInterceptor()
 	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{}, func(ctx context.Context, req any) (any, error) {
@@ -110,6 +156,29 @@ func TestHostUnaryServerInterceptor(t *testing.T) {
 	}
 	if response != "ok" {
 		t.Fatalf("response = %v, want ok", response)
+	}
+}
+
+func TestHostStreamServerInterceptor(t *testing.T) {
+	interceptor := HostStreamServerInterceptor()
+
+	err := interceptor(nil, &mockServerStream{ctx: context.Background()}, &grpc.StreamServerInfo{}, func(srv any, stream grpc.ServerStream) error {
+		return nil
+	})
+	if code := status.Code(err); code != codes.PermissionDenied {
+		t.Fatalf("without host code = %s, want %s", code, codes.PermissionDenied)
+	}
+
+	called := false
+	err = interceptor(nil, &mockServerStream{ctx: tenantctx.WithHost(context.Background())}, &grpc.StreamServerInfo{}, func(srv any, stream grpc.ServerStream) error {
+		called = true
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("host stream error = %v", err)
+	}
+	if !called {
+		t.Fatal("host stream handler was not called")
 	}
 }
 

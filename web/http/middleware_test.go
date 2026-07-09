@@ -62,6 +62,40 @@ func TestTenantMiddlewareRejectsMissingTenant(t *testing.T) {
 	}
 }
 
+func TestTenantStatusGuard(t *testing.T) {
+	handler := TenantStatusGuard(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	}))
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	if recorder.Code != http.StatusUnauthorized || recorder.Body.String() != `{"error":"tenant_required"}` {
+		t.Fatalf("missing tenant response = %d %q, want 401 tenant_required", recorder.Code, recorder.Body.String())
+	}
+
+	recorder = httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request = request.WithContext(tenantctx.WithTenant(request.Context(), types.Tenant{
+		ID:     "tenant-a",
+		Status: types.TenantStatusSuspended,
+	}))
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden || recorder.Body.String() != `{"error":"tenant_inactive"}` {
+		t.Fatalf("inactive tenant response = %d %q, want 403 tenant_inactive", recorder.Code, recorder.Body.String())
+	}
+
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodGet, "/", nil)
+	request = request.WithContext(tenantctx.WithTenant(request.Context(), types.Tenant{
+		ID:     "tenant-a",
+		Status: types.TenantStatusActive,
+	}))
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || recorder.Body.String() != "ok" {
+		t.Fatalf("active tenant response = %d %q, want 200 ok", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestHostGuard(t *testing.T) {
 	handler := HostGuard(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

@@ -2,6 +2,7 @@ package kratosgotenancy
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	tenantctx "github.com/DarkInno/gotenancy/core/context"
@@ -60,6 +61,67 @@ func TestTenantMiddlewareRejectsMissingTenant(t *testing.T) {
 	}
 }
 
+func TestTenantMiddlewareUsesHTTPRequestFromServerContext(t *testing.T) {
+	backing := store.NewMemoryStore()
+	if err := backing.Create(context.Background(), types.Tenant{ID: "tenant-a", Status: types.TenantStatusActive}); err != nil {
+		t.Fatalf("Create(active) error = %v", err)
+	}
+
+	handler := TenantMiddleware(resolver.NewComposite(resolver.NewHeaderContrib("", types.TenantIDStrategyString)), backing)(
+		func(ctx context.Context, req any) (any, error) {
+			tenant, ok := tenantctx.FromContext(ctx)
+			if !ok {
+				t.Fatal("tenant missing from context")
+			}
+			return tenant.ID.String(), nil
+		},
+	)
+
+	request, err := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	request.Header.Set(resolver.DefaultHeaderName, "tenant-a")
+
+	response, err := handler(transport.NewServerContext(context.Background(), httpRequestTransport{request: request}), nil)
+	if err != nil {
+		t.Fatalf("handler(http request context) error = %v", err)
+	}
+	if response != "tenant-a" {
+		t.Fatalf("response = %v, want tenant-a", response)
+	}
+}
+
+func TestTenantStatusGuard(t *testing.T) {
+	handler := TenantStatusGuard()(func(ctx context.Context, req any) (any, error) {
+		return "ok", nil
+	})
+
+	_, err := handler(context.Background(), nil)
+	if reason := kerrors.Reason(err); reason != reasonTenantRequired {
+		t.Fatalf("missing tenant reason = %s, want %s", reason, reasonTenantRequired)
+	}
+
+	_, err = handler(tenantctx.WithTenant(context.Background(), types.Tenant{
+		ID:     "tenant-a",
+		Status: types.TenantStatusSuspended,
+	}), nil)
+	if reason := kerrors.Reason(err); reason != reasonTenantInactive {
+		t.Fatalf("inactive tenant reason = %s, want %s", reason, reasonTenantInactive)
+	}
+
+	response, err := handler(tenantctx.WithTenant(context.Background(), types.Tenant{
+		ID:     "tenant-a",
+		Status: types.TenantStatusActive,
+	}), nil)
+	if err != nil {
+		t.Fatalf("active tenant handler error = %v", err)
+	}
+	if response != "ok" {
+		t.Fatalf("response = %v, want ok", response)
+	}
+}
+
 func TestHostGuard(t *testing.T) {
 	handler := HostGuard()(func(ctx context.Context, req any) (any, error) {
 		return "ok", nil
@@ -107,6 +169,38 @@ func (mock mockTransport) RequestHeader() transport.Header {
 
 func (mock mockTransport) ReplyHeader() transport.Header {
 	return testHeader{}
+}
+
+type httpRequestTransport struct {
+	request *http.Request
+}
+
+func (httpRequestTransport) Kind() transport.Kind {
+	return transport.KindHTTP
+}
+
+func (httpRequestTransport) Endpoint() string {
+	return ""
+}
+
+func (httpRequestTransport) Operation() string {
+	return ""
+}
+
+func (tr httpRequestTransport) RequestHeader() transport.Header {
+	return testHeader(tr.request.Header)
+}
+
+func (httpRequestTransport) ReplyHeader() transport.Header {
+	return testHeader{}
+}
+
+func (tr httpRequestTransport) Request() *http.Request {
+	return tr.request
+}
+
+func (httpRequestTransport) PathTemplate() string {
+	return ""
 }
 
 var _ middleware.Handler = func(context.Context, any) (any, error) { return nil, nil }
