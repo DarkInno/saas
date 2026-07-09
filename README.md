@@ -14,7 +14,7 @@ It provides tenant context, tenant resolution, data guards, web/RPC middleware, 
 - Host-wide access only through explicit host context.
 - GORM, Ent, and sqlx adapters for tenant-aware data access.
 - HTTP, Gin, Echo, Fiber, Kratos, and gRPC middleware.
-- Tenant lifecycle, plans, subscriptions, quotas, features, external identity links, RBAC, audit, users, and notifications.
+- Tenant lifecycle, plans, subscriptions, quotas, features, post-auth identity links, RBAC, audit, users, and notifications.
 
 Independent database and hybrid isolation models are not implemented.
 Future optional extension capabilities can live in separate modules, but the core adoption adapters ship with the main module.
@@ -181,7 +181,7 @@ ctx := tenantctx.WithHost(context.Background())
 - `saas/quota`: quota checking and atomic consumption.
 - `saas/feature`: plan defaults plus tenant-level feature overrides.
 - `saas/onboarding`: tenant onboarding flow across tenant, plan, subscription, feature, quota, audit, and notification services.
-- `biz/identity`: external Auth/SSO identity links for verified Google, GitHub, Microsoft, Magic Link, SAML, or generic OIDC assertions.
+- `biz/identity`: post-auth tenant user mapping for verified Google, GitHub, Microsoft, Magic Link, SAML, or generic OIDC assertions.
 - `web/*`: tenant middleware and guards for net/http, Gin, Echo, Fiber, and Kratos.
 - `rpc/grpc`: gRPC unary and stream tenant interceptors.
 - `migration`: tenant column and index planning.
@@ -189,9 +189,9 @@ ctx := tenantctx.WithHost(context.Background())
 - `obs`: observability fields and redaction.
 - `biz/*`: identity, user, RBAC, audit, and notification modules.
 
-## External Auth And SSO
+## Post-Auth Identity Mapping
 
-GoTenancy does not implement password login, OAuth callbacks, token issuance, or SAML XML validation. Use an IdP or protocol library such as Stytch, Auth0, WorkOS, go-oidc, or a SAML toolkit to verify the login first, then map the verified identity into a tenant:
+`biz/identity` is not an out-of-the-box OAuth/SSO implementation. It provides provider metadata presets and maps already verified identity assertions into tenant users and memberships. Applications still need an IdP or protocol library such as Stytch, Auth0, WorkOS, go-oidc, or a SAML toolkit for callbacks, token validation, Magic Link delivery, and SAML validation:
 
 ```go
 users := user.NewMemoryService()
@@ -211,7 +211,7 @@ session, err := identityService.Authenticate(ctx, identity.Assertion{
 })
 ```
 
-Provider presets include Google OIDC, GitHub OAuth, Microsoft Entra ID OIDC, generic OIDC, generic Magic Link, and generic SAML metadata. Providers must be explicitly allow-listed before assertions are accepted.
+Provider metadata presets include Google OIDC, GitHub OAuth, Microsoft Entra ID OIDC, generic OIDC, generic Magic Link, and generic SAML. Providers must be explicitly allow-listed before assertions are accepted.
 
 ## Verification
 
