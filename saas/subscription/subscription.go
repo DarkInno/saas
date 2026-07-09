@@ -12,7 +12,7 @@ type Subscription struct {
 	PlanID           string
 	Status           Status
 	StartDate        time.Time
+	EndDate          *time.Time
 	CurrentPeriodEnd *time.Time
 	GracePeriodEnd   *time.Time
-	EndDate          *time.Time
 }

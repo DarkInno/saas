@@ -83,9 +83,8 @@ func (service *MemoryService) subscribe(ctx context.Context, tenantID types.Tena
 	}
 
 	service.mu.Lock()
-	defer service.mu.Unlock()
-
 	if _, ok := service.subscriptions[tenantID]; ok {
+		service.mu.Unlock()
 		return Subscription{}, ErrSubscriptionAlreadyExists
 	}
 
@@ -98,10 +97,12 @@ func (service *MemoryService) subscribe(ctx context.Context, tenantID types.Tena
 	if currentPeriodEnd != nil {
 		service.setPeriod(&subscription, *currentPeriodEnd)
 	}
+	service.subscriptions[tenantID] = cloneSubscription(subscription)
+	service.mu.Unlock()
+
 	if err := service.emit(ctx, BillingEvent{TenantID: tenantID, Action: "subscribe", ToPlan: planID, Status: subscription.Status, CurrentPeriodEnd: cloneTimePtr(subscription.CurrentPeriodEnd)}); err != nil {
 		return Subscription{}, err
 	}
-	service.subscriptions[tenantID] = cloneSubscription(subscription)
 	return subscription, nil
 }
 
@@ -112,22 +113,24 @@ func (service *MemoryService) Unsubscribe(ctx context.Context, tenantID types.Te
 	}
 
 	service.mu.Lock()
-	defer service.mu.Unlock()
-
 	current, ok := service.subscriptions[tenantID]
 	if !ok {
+		service.mu.Unlock()
 		return Subscription{}, ErrSubscriptionNotFound
 	}
 	if current.Status != StatusActive {
+		service.mu.Unlock()
 		return Subscription{}, ErrInvalidTransition
 	}
 	now := service.now()
 	current.Status = StatusCancelled
 	current.EndDate = &now
+	service.subscriptions[tenantID] = cloneSubscription(current)
+	service.mu.Unlock()
+
 	if err := service.emit(ctx, BillingEvent{TenantID: tenantID, Action: "unsubscribe", FromPlan: current.PlanID, Status: current.Status}); err != nil {
 		return Subscription{}, err
 	}
-	service.subscriptions[tenantID] = cloneSubscription(current)
 	return cloneSubscription(current), nil
 }
 
@@ -141,22 +144,24 @@ func (service *MemoryService) Renew(ctx context.Context, tenantID types.TenantID
 	}
 
 	service.mu.Lock()
-	defer service.mu.Unlock()
-
 	current, ok := service.subscriptions[tenantID]
 	if !ok {
+		service.mu.Unlock()
 		return Subscription{}, ErrSubscriptionNotFound
 	}
 	if current.Status == StatusCancelled {
+		service.mu.Unlock()
 		return Subscription{}, ErrInvalidTransition
 	}
 	current.Status = StatusActive
 	current.EndDate = nil
 	service.setPeriod(&current, currentPeriodEnd)
+	service.subscriptions[tenantID] = cloneSubscription(current)
+	service.mu.Unlock()
+
 	if err := service.emit(ctx, BillingEvent{TenantID: tenantID, Action: "renew", ToPlan: current.PlanID, Status: current.Status, CurrentPeriodEnd: cloneTimePtr(current.CurrentPeriodEnd)}); err != nil {
 		return Subscription{}, err
 	}
-	service.subscriptions[tenantID] = cloneSubscription(current)
 	return cloneSubscription(current), nil
 }
 
@@ -170,22 +175,24 @@ func (service *MemoryService) Expire(ctx context.Context, tenantID types.TenantI
 	}
 
 	service.mu.Lock()
-	defer service.mu.Unlock()
-
 	current, ok := service.subscriptions[tenantID]
 	if !ok {
+		service.mu.Unlock()
 		return Subscription{}, ErrSubscriptionNotFound
 	}
 	if current.Status != StatusActive {
+		service.mu.Unlock()
 		return Subscription{}, ErrInvalidTransition
 	}
 	now := service.now()
 	current.Status = StatusExpired
 	current.EndDate = &now
+	service.subscriptions[tenantID] = cloneSubscription(current)
+	service.mu.Unlock()
+
 	if err := service.emit(ctx, BillingEvent{TenantID: tenantID, Action: "expire", FromPlan: current.PlanID, Status: current.Status, CurrentPeriodEnd: cloneTimePtr(current.CurrentPeriodEnd)}); err != nil {
 		return Subscription{}, err
 	}
-	service.subscriptions[tenantID] = cloneSubscription(current)
 	return cloneSubscription(current), nil
 }
 
@@ -196,10 +203,10 @@ func (service *MemoryService) ExpireDue(ctx context.Context) ([]Subscription, er
 	}
 
 	service.mu.Lock()
-	defer service.mu.Unlock()
 
 	now := service.now()
 	expired := []Subscription{}
+	events := []BillingEvent{}
 	for tenantID, current := range service.subscriptions {
 		if !subscriptionDue(current, now) {
 			continue
@@ -209,11 +216,16 @@ func (service *MemoryService) ExpireDue(ctx context.Context) ([]Subscription, er
 		next.Status = StatusExpired
 		endDate := expirationDate(next)
 		next.EndDate = &endDate
-		if err := service.emit(ctx, BillingEvent{TenantID: tenantID, Action: "expire", FromPlan: next.PlanID, Status: next.Status, CurrentPeriodEnd: cloneTimePtr(next.CurrentPeriodEnd)}); err != nil {
-			return expired, err
-		}
 		service.subscriptions[tenantID] = cloneSubscription(next)
 		expired = append(expired, cloneSubscription(next))
+		events = append(events, BillingEvent{TenantID: tenantID, Action: "expire", FromPlan: next.PlanID, Status: next.Status, CurrentPeriodEnd: cloneTimePtr(next.CurrentPeriodEnd)})
+	}
+	service.mu.Unlock()
+
+	for _, event := range events {
+		if err := service.emit(ctx, event); err != nil {
+			return expired, err
+		}
 	}
 	return expired, nil
 }
@@ -256,21 +268,23 @@ func (service *MemoryService) changePlan(ctx context.Context, tenantID types.Ten
 	}
 
 	service.mu.Lock()
-	defer service.mu.Unlock()
-
 	current, ok := service.subscriptions[tenantID]
 	if !ok {
+		service.mu.Unlock()
 		return Subscription{}, ErrSubscriptionNotFound
 	}
 	if current.Status != StatusActive {
+		service.mu.Unlock()
 		return Subscription{}, ErrInvalidTransition
 	}
 	fromPlan := current.PlanID
 	current.PlanID = planID
+	service.subscriptions[tenantID] = cloneSubscription(current)
+	service.mu.Unlock()
+
 	if err := service.emit(ctx, BillingEvent{TenantID: tenantID, Action: action, FromPlan: fromPlan, ToPlan: planID, Status: current.Status}); err != nil {
 		return Subscription{}, err
 	}
-	service.subscriptions[tenantID] = cloneSubscription(current)
 	return cloneSubscription(current), nil
 }
 

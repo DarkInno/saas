@@ -169,6 +169,25 @@ func TestMemoryServiceExpireDueWithGraceAndRenew(t *testing.T) {
 	}
 }
 
+func TestMemoryServiceBillingHookCanReenterService(t *testing.T) {
+	ctx := context.Background()
+	var service *MemoryService
+	service = NewMemoryService(WithBillingHook(func(ctx context.Context, event BillingEvent) error {
+		got, err := service.Get(ctx, event.TenantID)
+		if err != nil {
+			return err
+		}
+		if got.PlanID != "starter" {
+			t.Fatalf("hook Get() PlanID = %q, want starter", got.PlanID)
+		}
+		return nil
+	}))
+
+	if _, err := service.Subscribe(ctx, "tenant-a", "starter"); err != nil {
+		t.Fatalf("Subscribe() error = %v", err)
+	}
+}
+
 func TestMemoryServiceValidationAndMissing(t *testing.T) {
 	ctx := context.Background()
 	service := NewMemoryService()

@@ -9,6 +9,7 @@ import (
 	"github.com/DarkInno/gotenancy/biz/audit"
 	"github.com/DarkInno/gotenancy/biz/notification"
 	"github.com/DarkInno/gotenancy/core/store"
+	"github.com/DarkInno/gotenancy/core/types"
 	saasfeature "github.com/DarkInno/gotenancy/saas/feature"
 	saasplan "github.com/DarkInno/gotenancy/saas/plan"
 	saasquota "github.com/DarkInno/gotenancy/saas/quota"
@@ -67,9 +68,10 @@ func TestServiceOnboardInitializesSaaSModules(t *testing.T) {
 			Config:  map[string]string{"limit": "20"},
 		}},
 		Welcome: &notification.Message{
-			Channel: "email",
-			To:      "owner@example.com",
-			Subject: "Welcome",
+			TenantID: "tenant-b",
+			Channel:  "email",
+			To:       "owner@example.com",
+			Subject:  "Welcome",
 		},
 		AuditMetadata: map[string]string{"source": "signup"},
 	})
@@ -124,4 +126,44 @@ func TestServiceOnboardValidation(t *testing.T) {
 	if _, err := service.Onboard(ctx, Input{Tenant: saastenant.CreateInput{Name: "Tenant", PlanID: "missing"}}); !errors.Is(err, saasplan.ErrPlanNotFound) {
 		t.Fatalf("Onboard(missing plan) error = %v, want ErrPlanNotFound", err)
 	}
+
+	backing := store.NewMemoryStore()
+	periodEnd := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	service = New(saastenant.New(backing), plans, basicSubscriptionService{})
+	_, err := service.Onboard(ctx, Input{
+		Tenant: saastenant.CreateInput{
+			ID:     "tenant-a",
+			Name:   "Tenant A",
+			PlanID: "starter",
+		},
+		SubscriptionPeriodEnd: &periodEnd,
+	})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Onboard(period unsupported) error = %v, want ErrInvalidInput", err)
+	}
+	if _, err := backing.Get(ctx, "tenant-a"); !errors.Is(err, store.ErrTenantNotFound) {
+		t.Fatalf("tenant created before validation, Get() error = %v, want ErrTenantNotFound", err)
+	}
+}
+
+type basicSubscriptionService struct{}
+
+func (basicSubscriptionService) Subscribe(context.Context, types.TenantID, string) (saassubscription.Subscription, error) {
+	return saassubscription.Subscription{}, nil
+}
+
+func (basicSubscriptionService) Unsubscribe(context.Context, types.TenantID) (saassubscription.Subscription, error) {
+	return saassubscription.Subscription{}, nil
+}
+
+func (basicSubscriptionService) Upgrade(context.Context, types.TenantID, string) (saassubscription.Subscription, error) {
+	return saassubscription.Subscription{}, nil
+}
+
+func (basicSubscriptionService) Downgrade(context.Context, types.TenantID, string) (saassubscription.Subscription, error) {
+	return saassubscription.Subscription{}, nil
+}
+
+func (basicSubscriptionService) Get(context.Context, types.TenantID) (saassubscription.Subscription, error) {
+	return saassubscription.Subscription{}, saassubscription.ErrSubscriptionNotFound
 }

@@ -189,6 +189,11 @@ func (service *Service) validate(input Input) error {
 	if input.SubscriptionPeriodEnd != nil && input.SubscriptionPeriodEnd.IsZero() {
 		return ErrInvalidInput
 	}
+	if input.SubscriptionPeriodEnd != nil {
+		if _, ok := service.subscriptions.(saassubscription.LifecycleService); !ok {
+			return ErrInvalidInput
+		}
+	}
 	if input.Welcome != nil && service.notifier == nil {
 		return ErrInvalidInput
 	}
@@ -199,9 +204,7 @@ func (service *Service) subscribe(ctx context.Context, tenantID types.TenantID, 
 	if periodEnd == nil {
 		return service.subscriptions.Subscribe(ctx, tenantID, planID)
 	}
-	lifecycle, ok := service.subscriptions.(interface {
-		SubscribeWithPeriod(context.Context, types.TenantID, string, time.Time) (saassubscription.Subscription, error)
-	})
+	lifecycle, ok := service.subscriptions.(saassubscription.LifecycleService)
 	if !ok {
 		return saassubscription.Subscription{}, ErrInvalidInput
 	}
@@ -257,9 +260,7 @@ func auditMetadata(planID string, status types.TenantStatus, extra map[string]st
 }
 
 func cloneWelcome(tenantID types.TenantID, message notification.Message) notification.Message {
-	if message.TenantID == "" {
-		message.TenantID = tenantID
-	}
+	message.TenantID = tenantID
 	message.Metadata = cloneStringMap(message.Metadata)
 	return message
 }
