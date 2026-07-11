@@ -188,11 +188,12 @@ type quotaSQLTestConnector struct {
 }
 
 func (connector quotaSQLTestConnector) Connect(context.Context) (driver.Conn, error) {
-	return &quotaSQLTestConn{state: connector.state}, nil
+	connection := quotaSQLTestConn(connector)
+	return &connection, nil
 }
 
 func (connector quotaSQLTestConnector) Driver() driver.Driver {
-	return quotaSQLTestDriver{state: connector.state}
+	return quotaSQLTestDriver(connector)
 }
 
 type quotaSQLTestDriver struct {
@@ -200,7 +201,8 @@ type quotaSQLTestDriver struct {
 }
 
 func (driver quotaSQLTestDriver) Open(string) (driver.Conn, error) {
-	return &quotaSQLTestConn{state: driver.state}, nil
+	connection := quotaSQLTestConn(driver)
+	return &connection, nil
 }
 
 type quotaSQLTestConn struct {

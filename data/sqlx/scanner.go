@@ -203,7 +203,7 @@ func validateAssignments(tokens []sqlToken, tenantField string) error {
 	tenantColumn := configuredColumnName(tenantField)
 	start := 0
 	for index := 0; index <= len(tokens); index++ {
-		if index < len(tokens) && !(tokens[index].depth == 0 && tokens[index].kind == sqlSymbol && tokens[index].text == ",") {
+		if index < len(tokens) && (tokens[index].depth != 0 || tokens[index].kind != sqlSymbol || tokens[index].text != ",") {
 			continue
 		}
 		assignment := tokens[start:index]

@@ -176,11 +176,11 @@ type identityTestConnector struct {
 }
 
 func (connector identityTestConnector) Connect(context.Context) (driver.Conn, error) {
-	return identityTestConn{found: connector.found}, nil
+	return identityTestConn(connector), nil
 }
 
 func (connector identityTestConnector) Driver() driver.Driver {
-	return identityTestDriver{found: connector.found}
+	return identityTestDriver(connector)
 }
 
 type identityTestDriver struct {
@@ -188,7 +188,7 @@ type identityTestDriver struct {
 }
 
 func (driver identityTestDriver) Open(string) (driver.Conn, error) {
-	return identityTestConn{found: driver.found}, nil
+	return identityTestConn(driver), nil
 }
 
 type identityTestConn struct {

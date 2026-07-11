@@ -93,7 +93,7 @@ func TestSMTPNotifierHonorsContextAfterDial(t *testing.T) {
 	}
 
 	clientConn, serverConn := net.Pipe()
-	defer serverConn.Close()
+	defer func() { _ = serverConn.Close() }()
 	notifier.dial = func(context.Context, string, string) (net.Conn, error) {
 		return clientConn, nil
 	}
@@ -124,7 +124,7 @@ func TestSMTPNotifierAppliesTimeoutAfterDial(t *testing.T) {
 	}
 
 	clientConn, serverConn := net.Pipe()
-	defer serverConn.Close()
+	defer func() { _ = serverConn.Close() }()
 	notifier.dial = func(context.Context, string, string) (net.Conn, error) {
 		return clientConn, nil
 	}
