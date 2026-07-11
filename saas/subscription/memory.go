@@ -44,13 +44,33 @@ func WithGracePeriod(period time.Duration) Option {
 	}
 }
 
-// MemoryService is a thread-safe in-memory subscription service.
+// MemoryService is a thread-safe in-memory subscription service. Billing hooks
+// receive a context that can read the staged state, while other readers keep
+// seeing the last committed state. Same-tenant writers wait for the hook to
+// finish; a hook attempting that write itself receives
+// ErrBillingHookReentrantMutation instead of deadlocking. Get observes the
+// hook overlay; List and ListPage intentionally return committed state only.
 type MemoryService struct {
 	mu            sync.RWMutex
 	now           func() time.Time
 	gracePeriod   time.Duration
 	billing       BillingHook
 	subscriptions map[types.TenantID]Subscription
+	pending       map[types.TenantID]*pendingMutation
+}
+
+type pendingMutation struct {
+	staged Subscription
+	done   chan struct{}
+}
+
+type billingHookContextKey struct{}
+
+type billingHookContext struct {
+	service  *MemoryService
+	tenantID types.TenantID
+	pending  *pendingMutation
+	parent   *billingHookContext
 }
 
 // NewMemoryService creates an empty subscription service.
@@ -58,6 +78,7 @@ func NewMemoryService(opts ...Option) *MemoryService {
 	service := &MemoryService{
 		now:           time.Now,
 		subscriptions: map[types.TenantID]Subscription{},
+		pending:       map[types.TenantID]*pendingMutation{},
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -80,8 +101,9 @@ func (service *MemoryService) Create(ctx context.Context, subscription Subscript
 	if err := validateSubscription(subscription); err != nil {
 		return err
 	}
-
-	service.mu.Lock()
+	if err := service.lockMutation(ctx, subscription.TenantID); err != nil {
+		return err
+	}
 	defer service.mu.Unlock()
 
 	if _, ok := service.subscriptions[subscription.TenantID]; ok {
@@ -111,8 +133,9 @@ func (service *MemoryService) subscribe(ctx context.Context, tenantID types.Tena
 	if tenantID == "" || planID == "" {
 		return Subscription{}, ErrInvalidSubscription
 	}
-
-	service.mu.Lock()
+	if err := service.lockMutation(ctx, tenantID); err != nil {
+		return Subscription{}, err
+	}
 	if _, ok := service.subscriptions[tenantID]; ok {
 		service.mu.Unlock()
 		return Subscription{}, ErrSubscriptionAlreadyExists
@@ -127,10 +150,10 @@ func (service *MemoryService) subscribe(ctx context.Context, tenantID types.Tena
 	if currentPeriodEnd != nil {
 		service.setPeriod(&subscription, *currentPeriodEnd)
 	}
-	service.subscriptions[tenantID] = cloneSubscription(subscription)
+	pending := service.stageLocked(tenantID, subscription)
 	service.mu.Unlock()
 
-	if err := service.emit(ctx, BillingEvent{TenantID: tenantID, Action: "subscribe", ToPlan: planID, Status: subscription.Status, CurrentPeriodEnd: cloneTimePtr(subscription.CurrentPeriodEnd)}); err != nil {
+	if err := service.runBillingHook(ctx, BillingEvent{TenantID: tenantID, Action: "subscribe", ToPlan: planID, Status: subscription.Status, CurrentPeriodEnd: cloneTimePtr(subscription.CurrentPeriodEnd)}, tenantID, pending); err != nil {
 		return Subscription{}, err
 	}
 	return subscription, nil
@@ -141,8 +164,9 @@ func (service *MemoryService) Unsubscribe(ctx context.Context, tenantID types.Te
 	if err := ctx.Err(); err != nil {
 		return Subscription{}, err
 	}
-
-	service.mu.Lock()
+	if err := service.lockMutation(ctx, tenantID); err != nil {
+		return Subscription{}, err
+	}
 	current, ok := service.subscriptions[tenantID]
 	if !ok {
 		service.mu.Unlock()
@@ -155,10 +179,10 @@ func (service *MemoryService) Unsubscribe(ctx context.Context, tenantID types.Te
 	now := service.now()
 	current.Status = StatusCancelled
 	current.EndDate = &now
-	service.subscriptions[tenantID] = cloneSubscription(current)
+	pending := service.stageLocked(tenantID, current)
 	service.mu.Unlock()
 
-	if err := service.emit(ctx, BillingEvent{TenantID: tenantID, Action: "unsubscribe", FromPlan: current.PlanID, Status: current.Status}); err != nil {
+	if err := service.runBillingHook(ctx, BillingEvent{TenantID: tenantID, Action: "unsubscribe", FromPlan: current.PlanID, Status: current.Status}, tenantID, pending); err != nil {
 		return Subscription{}, err
 	}
 	return cloneSubscription(current), nil
@@ -172,8 +196,9 @@ func (service *MemoryService) Renew(ctx context.Context, tenantID types.TenantID
 	if tenantID == "" || currentPeriodEnd.IsZero() {
 		return Subscription{}, ErrInvalidSubscription
 	}
-
-	service.mu.Lock()
+	if err := service.lockMutation(ctx, tenantID); err != nil {
+		return Subscription{}, err
+	}
 	current, ok := service.subscriptions[tenantID]
 	if !ok {
 		service.mu.Unlock()
@@ -186,10 +211,10 @@ func (service *MemoryService) Renew(ctx context.Context, tenantID types.TenantID
 	current.Status = StatusActive
 	current.EndDate = nil
 	service.setPeriod(&current, currentPeriodEnd)
-	service.subscriptions[tenantID] = cloneSubscription(current)
+	pending := service.stageLocked(tenantID, current)
 	service.mu.Unlock()
 
-	if err := service.emit(ctx, BillingEvent{TenantID: tenantID, Action: "renew", ToPlan: current.PlanID, Status: current.Status, CurrentPeriodEnd: cloneTimePtr(current.CurrentPeriodEnd)}); err != nil {
+	if err := service.runBillingHook(ctx, BillingEvent{TenantID: tenantID, Action: "renew", ToPlan: current.PlanID, Status: current.Status, CurrentPeriodEnd: cloneTimePtr(current.CurrentPeriodEnd)}, tenantID, pending); err != nil {
 		return Subscription{}, err
 	}
 	return cloneSubscription(current), nil
@@ -203,8 +228,9 @@ func (service *MemoryService) Expire(ctx context.Context, tenantID types.TenantI
 	if tenantID == "" {
 		return Subscription{}, ErrInvalidSubscription
 	}
-
-	service.mu.Lock()
+	if err := service.lockMutation(ctx, tenantID); err != nil {
+		return Subscription{}, err
+	}
 	current, ok := service.subscriptions[tenantID]
 	if !ok {
 		service.mu.Unlock()
@@ -217,10 +243,10 @@ func (service *MemoryService) Expire(ctx context.Context, tenantID types.TenantI
 	now := service.now()
 	current.Status = StatusExpired
 	current.EndDate = &now
-	service.subscriptions[tenantID] = cloneSubscription(current)
+	pending := service.stageLocked(tenantID, current)
 	service.mu.Unlock()
 
-	if err := service.emit(ctx, BillingEvent{TenantID: tenantID, Action: "expire", FromPlan: current.PlanID, Status: current.Status, CurrentPeriodEnd: cloneTimePtr(current.CurrentPeriodEnd)}); err != nil {
+	if err := service.runBillingHook(ctx, BillingEvent{TenantID: tenantID, Action: "expire", FromPlan: current.PlanID, Status: current.Status, CurrentPeriodEnd: cloneTimePtr(current.CurrentPeriodEnd)}, tenantID, pending); err != nil {
 		return Subscription{}, err
 	}
 	return cloneSubscription(current), nil
@@ -231,14 +257,29 @@ func (service *MemoryService) ExpireDue(ctx context.Context) ([]Subscription, er
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-
-	service.mu.Lock()
-
 	now := service.now()
-	expired := []Subscription{}
-	events := []BillingEvent{}
+	service.mu.RLock()
+	due := make([]types.TenantID, 0, len(service.subscriptions))
 	for tenantID, current := range service.subscriptions {
+		if subscriptionDue(current, now) {
+			due = append(due, tenantID)
+		}
+	}
+	service.mu.RUnlock()
+	sort.Slice(due, func(i, j int) bool { return due[i] < due[j] })
+
+	expired := []Subscription{}
+	for _, tenantID := range due {
+		if err := service.lockMutation(ctx, tenantID); err != nil {
+			return expired, err
+		}
+		current, ok := service.subscriptions[tenantID]
+		if !ok {
+			service.mu.Unlock()
+			continue
+		}
 		if !subscriptionDue(current, now) {
+			service.mu.Unlock()
 			continue
 		}
 
@@ -246,16 +287,14 @@ func (service *MemoryService) ExpireDue(ctx context.Context) ([]Subscription, er
 		next.Status = StatusExpired
 		endDate := expirationDate(next)
 		next.EndDate = &endDate
-		service.subscriptions[tenantID] = cloneSubscription(next)
-		expired = append(expired, cloneSubscription(next))
-		events = append(events, BillingEvent{TenantID: tenantID, Action: "expire", FromPlan: next.PlanID, Status: next.Status, CurrentPeriodEnd: cloneTimePtr(next.CurrentPeriodEnd)})
-	}
-	service.mu.Unlock()
+		pending := service.stageLocked(tenantID, next)
+		service.mu.Unlock()
 
-	for _, event := range events {
-		if err := service.emit(ctx, event); err != nil {
+		event := BillingEvent{TenantID: tenantID, Action: "expire", FromPlan: next.PlanID, Status: next.Status, CurrentPeriodEnd: cloneTimePtr(next.CurrentPeriodEnd)}
+		if err := service.runBillingHook(ctx, event, tenantID, pending); err != nil {
 			return expired, err
 		}
+		expired = append(expired, cloneSubscription(next))
 	}
 	return expired, nil
 }
@@ -281,6 +320,11 @@ func (service *MemoryService) Get(ctx context.Context, tenantID types.TenantID) 
 
 	service.mu.RLock()
 	defer service.mu.RUnlock()
+	if pending := service.pending[tenantID]; pending != nil {
+		if service.hookCanRead(ctx, tenantID, pending) {
+			return cloneSubscription(pending.staged), nil
+		}
+	}
 
 	subscription, ok := service.subscriptions[tenantID]
 	if !ok {
@@ -336,8 +380,9 @@ func (service *MemoryService) Update(ctx context.Context, subscription Subscript
 	if err := validateSubscription(subscription); err != nil {
 		return err
 	}
-
-	service.mu.Lock()
+	if err := service.lockMutation(ctx, subscription.TenantID); err != nil {
+		return err
+	}
 	defer service.mu.Unlock()
 
 	if _, ok := service.subscriptions[subscription.TenantID]; !ok {
@@ -355,8 +400,9 @@ func (service *MemoryService) Delete(ctx context.Context, tenantID types.TenantI
 	if tenantID == "" {
 		return ErrInvalidSubscription
 	}
-
-	service.mu.Lock()
+	if err := service.lockMutation(ctx, tenantID); err != nil {
+		return err
+	}
 	defer service.mu.Unlock()
 
 	if _, ok := service.subscriptions[tenantID]; !ok {
@@ -373,8 +419,9 @@ func (service *MemoryService) changePlan(ctx context.Context, tenantID types.Ten
 	if tenantID == "" || planID == "" {
 		return Subscription{}, ErrInvalidSubscription
 	}
-
-	service.mu.Lock()
+	if err := service.lockMutation(ctx, tenantID); err != nil {
+		return Subscription{}, err
+	}
 	current, ok := service.subscriptions[tenantID]
 	if !ok {
 		service.mu.Unlock()
@@ -386,20 +433,104 @@ func (service *MemoryService) changePlan(ctx context.Context, tenantID types.Ten
 	}
 	fromPlan := current.PlanID
 	current.PlanID = planID
-	service.subscriptions[tenantID] = cloneSubscription(current)
+	pending := service.stageLocked(tenantID, current)
 	service.mu.Unlock()
 
-	if err := service.emit(ctx, BillingEvent{TenantID: tenantID, Action: action, FromPlan: fromPlan, ToPlan: planID, Status: current.Status}); err != nil {
+	if err := service.runBillingHook(ctx, BillingEvent{TenantID: tenantID, Action: action, FromPlan: fromPlan, ToPlan: planID, Status: current.Status}, tenantID, pending); err != nil {
 		return Subscription{}, err
 	}
 	return cloneSubscription(current), nil
 }
 
-func (service *MemoryService) emit(ctx context.Context, event BillingEvent) error {
+func (service *MemoryService) emit(ctx context.Context, event BillingEvent, pending *pendingMutation) error {
 	if service.billing == nil {
 		return nil
 	}
-	return service.billing(ctx, event)
+	parent, _ := ctx.Value(billingHookContextKey{}).(*billingHookContext)
+	hook := &billingHookContext{service: service, tenantID: event.TenantID, pending: pending, parent: parent}
+	hookCtx := context.WithValue(ctx, billingHookContextKey{}, hook)
+	return service.billing(hookCtx, event)
+}
+
+// runBillingHook commits the staged mutation only after the hook succeeds. Its
+// deferred rollback deliberately does not recover panics: it releases waiters
+// and discards the overlay, then lets the original panic continue naturally.
+func (service *MemoryService) runBillingHook(ctx context.Context, event BillingEvent, tenantID types.TenantID, pending *pendingMutation) (err error) {
+	committed := false
+	defer func() {
+		if !committed {
+			service.finishPending(tenantID, pending, false)
+		}
+	}()
+	if err := service.emit(ctx, event, pending); err != nil {
+		return err
+	}
+	service.finishPending(tenantID, pending, true)
+	committed = true
+	return nil
+}
+
+func (service *MemoryService) lockMutation(ctx context.Context, tenantID types.TenantID) error {
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		service.mu.Lock()
+		pending := service.pending[tenantID]
+		if pending == nil {
+			return nil
+		}
+		if hasBillingHookMarker(ctx) {
+			service.mu.Unlock()
+			return ErrBillingHookReentrantMutation
+		}
+		done := pending.done
+		service.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-done:
+		}
+	}
+}
+
+func (service *MemoryService) stageLocked(tenantID types.TenantID, staged Subscription) *pendingMutation {
+	if service.pending == nil {
+		service.pending = map[types.TenantID]*pendingMutation{}
+	}
+	pending := &pendingMutation{staged: cloneSubscription(staged), done: make(chan struct{})}
+	service.pending[tenantID] = pending
+	return pending
+}
+
+func (service *MemoryService) finishPending(tenantID types.TenantID, pending *pendingMutation, commit bool) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if service.pending[tenantID] != pending {
+		return
+	}
+	if commit {
+		service.subscriptions[tenantID] = cloneSubscription(pending.staged)
+	}
+	delete(service.pending, tenantID)
+	close(pending.done)
+}
+
+func (service *MemoryService) hookCanRead(ctx context.Context, tenantID types.TenantID, pending *pendingMutation) bool {
+	hook, _ := ctx.Value(billingHookContextKey{}).(*billingHookContext)
+	for hook != nil {
+		if hook.service == service && hook.tenantID == tenantID && hook.pending == pending {
+			return true
+		}
+		hook = hook.parent
+	}
+	return false
+}
+
+func hasBillingHookMarker(ctx context.Context) bool {
+	hook, _ := ctx.Value(billingHookContextKey{}).(*billingHookContext)
+	return hook != nil
 }
 
 func (service *MemoryService) setPeriod(subscription *Subscription, currentPeriodEnd time.Time) {

@@ -146,6 +146,265 @@ func TestServiceOnboardValidation(t *testing.T) {
 	}
 }
 
+func TestServiceOnboardResumesAfterPostActivationFailure(t *testing.T) {
+	ctx := context.Background()
+	plans := saasplan.NewMemoryService()
+	if err := plans.Create(ctx, saasplan.Plan{
+		ID: "starter", Name: "Starter",
+		Quotas: []saasplan.Quota{{Resource: "api_calls", Limit: 100, Period: saasplan.QuotaPeriodMonth}},
+	}); err != nil {
+		t.Fatalf("plans.Create() error = %v", err)
+	}
+
+	backing := store.NewMemoryStore()
+	quotas := saasquota.NewMemoryStore()
+	audits := audit.NewMemoryStore()
+	notifications := []notification.Message{}
+	wantErr := errors.New("notifier unavailable")
+	fail := true
+	notifier := notification.NotifierFunc(func(_ context.Context, message notification.Message) error {
+		if fail {
+			return wantErr
+		}
+		notifications = append(notifications, message.Clone())
+		return nil
+	})
+	service := New(
+		saastenant.New(backing),
+		plans,
+		saassubscription.NewMemoryService(),
+		WithQuotaStore(quotas),
+		WithAuditStore(audits),
+		WithNotifier(notifier),
+	)
+	input := Input{
+		Tenant:  saastenant.CreateInput{ID: "tenant-a", Name: "Tenant A", PlanID: "starter"},
+		Welcome: &notification.Message{Channel: "email", To: "owner@example.com", Subject: "Welcome"},
+	}
+
+	partial, err := service.Onboard(ctx, input)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Onboard() error = %v, want notifier error", err)
+	}
+	if partial.Tenant.Status != types.TenantStatusActive || partial.Subscription.Status != saassubscription.StatusActive {
+		t.Fatalf("Onboard() partial result = %+v, want committed active tenant and subscription", partial)
+	}
+	if _, err := quotas.Add(ctx, "tenant-a", "api_calls", saasquota.PeriodMonth, 7); err != nil {
+		t.Fatalf("quotas.Add() error = %v", err)
+	}
+
+	fail = false
+	result, err := service.Onboard(ctx, input)
+	if err != nil {
+		t.Fatalf("Onboard(retry) error = %v", err)
+	}
+	if result.Tenant.Status != types.TenantStatusActive || result.Subscription.Status != saassubscription.StatusActive {
+		t.Fatalf("Onboard(retry) result = %+v, want active state", result)
+	}
+	used, err := quotas.Get(ctx, "tenant-a", "api_calls", saasquota.PeriodMonth)
+	if err != nil {
+		t.Fatalf("quotas.Get() error = %v", err)
+	}
+	if used != 7 {
+		t.Fatalf("quota usage after resume = %d, want 7 without reset", used)
+	}
+	events, err := audits.List(ctx, "tenant-a")
+	if err != nil {
+		t.Fatalf("audits.List() error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("audit events after resume = %d, want one", len(events))
+	}
+	if len(notifications) != 1 || notifications[0].ID == "" {
+		t.Fatalf("notifications = %+v, want one idempotent welcome", notifications)
+	}
+
+	if _, err := service.Onboard(ctx, input); err != nil {
+		t.Fatalf("Onboard(idempotent retry) error = %v", err)
+	}
+	if len(notifications) != 1 {
+		t.Fatalf("notifications after repeated retry = %d, want one", len(notifications))
+	}
+}
+
+func TestServiceOnboardSkipActivationRetryDoesNotResetQuota(t *testing.T) {
+	ctx := context.Background()
+	plans := saasplan.NewMemoryService()
+	if err := plans.Create(ctx, saasplan.Plan{
+		ID: "starter", Name: "Starter",
+		Quotas: []saasplan.Quota{{Resource: "api_calls", Limit: 100, Period: saasplan.QuotaPeriodMonth}},
+	}); err != nil {
+		t.Fatalf("plans.Create() error = %v", err)
+	}
+
+	quotas := saasquota.NewMemoryStore()
+	fail := true
+	wantErr := errors.New("notifier unavailable")
+	notifier := notification.NotifierFunc(func(context.Context, notification.Message) error {
+		if fail {
+			return wantErr
+		}
+		return nil
+	})
+	service := New(
+		saastenant.New(store.NewMemoryStore()),
+		plans,
+		saassubscription.NewMemoryService(),
+		WithQuotaStore(quotas),
+		WithNotifier(notifier),
+	)
+	input := Input{
+		Tenant:         saastenant.CreateInput{ID: "tenant-a", Name: "Tenant A", PlanID: "starter"},
+		SkipActivation: true,
+		Welcome:        &notification.Message{Channel: "email", To: "owner@example.com", Subject: "Welcome"},
+	}
+
+	partial, err := service.Onboard(ctx, input)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Onboard() error = %v, want notifier error", err)
+	}
+	if partial.Tenant.Status != types.TenantStatusPending || partial.Subscription.Status != saassubscription.StatusActive {
+		t.Fatalf("Onboard() partial = %+v, want pending tenant with active subscription", partial)
+	}
+	if _, err := quotas.Add(ctx, "tenant-a", "api_calls", saasquota.PeriodMonth, 7); err != nil {
+		t.Fatalf("quotas.Add() error = %v", err)
+	}
+
+	fail = false
+	result, err := service.Onboard(ctx, input)
+	if err != nil {
+		t.Fatalf("Onboard(retry) error = %v", err)
+	}
+	if result.Tenant.Status != types.TenantStatusPending {
+		t.Fatalf("Onboard(retry) status = %q, want pending", result.Tenant.Status)
+	}
+	used, err := quotas.Get(ctx, "tenant-a", "api_calls", saasquota.PeriodMonth)
+	if err != nil {
+		t.Fatalf("quotas.Get() error = %v", err)
+	}
+	if used != 7 {
+		t.Fatalf("quota usage after SkipActivation retry = %d, want 7", used)
+	}
+}
+
+func TestServiceWelcomeDedupeKeyIncludesTenant(t *testing.T) {
+	ctx := context.Background()
+	plans := saasplan.NewMemoryService()
+	if err := plans.Create(ctx, saasplan.Plan{ID: "starter", Name: "Starter"}); err != nil {
+		t.Fatalf("plans.Create() error = %v", err)
+	}
+	notifier := notification.NewMemoryNotifier()
+	service := New(
+		saastenant.New(store.NewMemoryStore()),
+		plans,
+		saassubscription.NewMemoryService(),
+		WithNotifier(notifier),
+	)
+	for _, tenantID := range []types.TenantID{"tenant-a", "tenant-b"} {
+		_, err := service.Onboard(ctx, Input{
+			Tenant:  saastenant.CreateInput{ID: tenantID, Name: tenantID.String(), PlanID: "starter"},
+			Welcome: &notification.Message{ID: "shared-request-id", Channel: "email", To: "owner@example.com", Subject: "Welcome"},
+		})
+		if err != nil {
+			t.Fatalf("Onboard(%s) error = %v", tenantID, err)
+		}
+	}
+	messages := notifier.Messages()
+	if len(messages) != 2 || messages[0].TenantID == messages[1].TenantID {
+		t.Fatalf("welcome messages = %+v, want one delivery for each tenant", messages)
+	}
+}
+
+func TestServiceOnboardReturnsGeneratedIDAfterTenantAuditFailure(t *testing.T) {
+	ctx := context.Background()
+	plans := saasplan.NewMemoryService()
+	if err := plans.Create(ctx, saasplan.Plan{
+		ID: "starter", Name: "Starter",
+		Quotas: []saasplan.Quota{{Resource: "api_calls", Limit: 100, Period: saasplan.QuotaPeriodMonth}},
+	}); err != nil {
+		t.Fatalf("plans.Create() error = %v", err)
+	}
+	wantErr := errors.New("tenant audit unavailable")
+	tenants := saastenant.New(
+		store.NewMemoryStore(),
+		saastenant.WithIDGenerator(func(context.Context) (types.TenantID, error) { return "generated-id", nil }),
+		saastenant.WithAuditor(func(context.Context, saastenant.Event) error { return wantErr }),
+	)
+	service := New(tenants, plans, saassubscription.NewMemoryService())
+	input := Input{
+		Tenant:         saastenant.CreateInput{Name: "Tenant A", PlanID: "starter"},
+		SkipActivation: true,
+	}
+
+	partial, err := service.Onboard(ctx, input)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Onboard() error = %v, want tenant audit error", err)
+	}
+	if partial.Tenant.ID != "generated-id" || partial.Plan.ID != "starter" || len(partial.QuotaLimits) != 1 {
+		t.Fatalf("Onboard() partial = %+v, want generated tenant ID and selected plan state", partial)
+	}
+
+	input.Tenant.ID = partial.Tenant.ID
+	result, err := service.Onboard(ctx, input)
+	if err != nil {
+		t.Fatalf("Onboard(retry with partial ID) error = %v", err)
+	}
+	if result.Tenant.ID != partial.Tenant.ID || result.Subscription.Status != saassubscription.StatusActive {
+		t.Fatalf("Onboard(retry) result = %+v, want resumed generated tenant", result)
+	}
+}
+
+func TestServiceRejectsSubscriptionPeriodConflictBeforeInitialization(t *testing.T) {
+	ctx := context.Background()
+	plans := saasplan.NewMemoryService()
+	if err := plans.Create(ctx, saasplan.Plan{
+		ID: "starter", Name: "Starter",
+		Features: []saasplan.Feature{{Key: "exports", Enabled: true}},
+		Quotas:   []saasplan.Quota{{Resource: "api_calls", Limit: 100, Period: saasplan.QuotaPeriodMonth}},
+	}); err != nil {
+		t.Fatalf("plans.Create() error = %v", err)
+	}
+	tenants := saastenant.New(store.NewMemoryStore())
+	if _, err := tenants.Create(ctx, saastenant.CreateInput{ID: "tenant-a", Name: "Tenant A", PlanID: "starter"}); err != nil {
+		t.Fatalf("tenants.Create() error = %v", err)
+	}
+	periodEnd := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	subscriptions := saassubscription.NewMemoryService()
+	if _, err := subscriptions.SubscribeWithPeriod(ctx, "tenant-a", "starter", periodEnd); err != nil {
+		t.Fatalf("subscriptions.SubscribeWithPeriod() error = %v", err)
+	}
+	features := saasfeature.NewMemoryStore()
+	if err := features.SetPlanDefaults(ctx, "starter", []saasfeature.Flag{{Key: "exports", Enabled: false}}); err != nil {
+		t.Fatalf("features.SetPlanDefaults() error = %v", err)
+	}
+	quotas := saasquota.NewMemoryStore()
+	if _, err := quotas.Add(ctx, "tenant-a", "api_calls", saasquota.PeriodMonth, 7); err != nil {
+		t.Fatalf("quotas.Add() error = %v", err)
+	}
+	service := New(tenants, plans, subscriptions, WithFeatureStore(features), WithQuotaStore(quotas))
+
+	_, err := service.Onboard(ctx, Input{
+		Tenant: saastenant.CreateInput{ID: "tenant-a", Name: "Tenant A", PlanID: "starter"},
+	})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Onboard(period mismatch) error = %v, want ErrInvalidInput", err)
+	}
+	flag, err := features.Resolve(ctx, "tenant-a", "starter", "exports")
+	if err != nil {
+		t.Fatalf("features.Resolve() error = %v", err)
+	}
+	if flag.Enabled {
+		t.Fatal("subscription conflict changed feature defaults before failing")
+	}
+	used, err := quotas.Get(ctx, "tenant-a", "api_calls", saasquota.PeriodMonth)
+	if err != nil {
+		t.Fatalf("quotas.Get() error = %v", err)
+	}
+	if used != 7 {
+		t.Fatalf("subscription conflict reset quota usage to %d, want 7", used)
+	}
+}
+
 type basicSubscriptionService struct{}
 
 func (basicSubscriptionService) Subscribe(context.Context, types.TenantID, string) (saassubscription.Subscription, error) {

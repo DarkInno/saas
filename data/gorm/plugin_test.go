@@ -157,6 +157,57 @@ func TestUpdateAndDeleteAddTenantCondition(t *testing.T) {
 	assertVarsContain(t, deleteTx.Statement.Vars, "tenant-a")
 }
 
+func TestUpdateRejectsTenantFieldChange(t *testing.T) {
+	ctx := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "tenant-a"})
+
+	for _, test := range []struct {
+		name   string
+		config Config
+		field  string
+	}{
+		{name: "default field", field: "tenant_id"},
+		{name: "qualified configured field", config: Config{TenantField: "tenant_orders.tenant_id"}, field: "tenant_id"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			db := newDryRunDBWithConfig(t, test.config)
+			tx := db.WithContext(ctx).Model(&tenantOrder{}).Where("id = ?", 1).Update(test.field, "tenant-b")
+			if !errors.Is(tx.Error, ErrTenantFieldUpdate) {
+				t.Fatalf("Update(tenant field) error = %v, want ErrTenantFieldUpdate", tx.Error)
+			}
+		})
+	}
+
+	db := newDryRunDB(t)
+	structUpdate := db.WithContext(ctx).Model(&tenantOrder{}).Where("id = ?", 1).Updates(tenantOrder{TenantID: "tenant-b", Name: "updated"})
+	if !errors.Is(structUpdate.Error, ErrTenantFieldUpdate) {
+		t.Fatalf("Updates(struct tenant field) error = %v, want ErrTenantFieldUpdate", structUpdate.Error)
+	}
+	expressionUpdate := db.WithContext(ctx).Model(&tenantOrder{}).Where("id = ?", 1).Update("tenant_id", gorm.Expr("?", "tenant-a"))
+	if !errors.Is(expressionUpdate.Error, ErrTenantFieldUpdate) {
+		t.Fatalf("Update(expression tenant field) error = %v, want ErrTenantFieldUpdate", expressionUpdate.Error)
+	}
+
+	sameTenantUpdate := db.WithContext(ctx).Model(&tenantOrder{}).Where("id = ?", 1).Update("tenant_id", "tenant-a")
+	if sameTenantUpdate.Error != nil {
+		t.Fatalf("Update(same tenant field) error = %v", sameTenantUpdate.Error)
+	}
+	assertSQLContains(t, sameTenantUpdate.Statement.SQL.String(), "tenant_id = ?")
+	assertVarsContain(t, sameTenantUpdate.Statement.Vars, "tenant-a")
+
+	sameTenantSave := db.WithContext(ctx).Save(&tenantOrder{ID: 1, TenantID: "tenant-a", Name: "updated"})
+	if sameTenantSave.Error != nil {
+		t.Fatalf("Save(same tenant field) error = %v", sameTenantSave.Error)
+	}
+	assertSQLContains(t, sameTenantSave.Statement.SQL.String(), "tenant_id = ?")
+	assertVarsContain(t, sameTenantSave.Statement.Vars, "tenant-a")
+
+	hostUpdate := db.WithContext(tenantctx.WithHost(context.Background())).Model(&tenantOrder{}).Where("id = ?", 1).Update("tenant_id", "tenant-b")
+	if hostUpdate.Error != nil {
+		t.Fatalf("Update(host tenant field) error = %v", hostUpdate.Error)
+	}
+	assertSQLContains(t, hostUpdate.Statement.SQL.String(), "SET `tenant_id`=?")
+}
+
 func TestCountAddsTenantCondition(t *testing.T) {
 	db := newDryRunDB(t)
 	ctx := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "tenant-a"})

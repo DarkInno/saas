@@ -288,20 +288,23 @@ func (client *Client) userInfoClaims(ctx context.Context, token *oauth2.Token) (
 	if values.Subject == "" {
 		values.Subject = userInfo.Subject
 	}
-	if values.Email == "" {
-		values.Email = userInfo.Email
-	}
-	if !values.EmailVerified {
-		values.EmailVerified = userInfo.EmailVerified
-	}
+	values = mergeClaims(values, claims{
+		Email:         userInfo.Email,
+		EmailVerified: userInfo.EmailVerified,
+	})
 	return values, nil
 }
 
 func mergeClaims(primary claims, fallback claims) claims {
 	if primary.Email == "" {
 		primary.Email = fallback.Email
-	}
-	if !primary.EmailVerified {
+		primary.EmailVerified = fallback.EmailVerified
+	} else if !primary.EmailVerified &&
+		strings.TrimSpace(primary.Email) == strings.TrimSpace(fallback.Email) &&
+		strings.TrimSpace(fallback.Email) != "" {
+		// email_verified only vouches for the email returned by the same
+		// claims source. Do not let UserInfo verification for a different
+		// address promote an unverified ID-token email.
 		primary.EmailVerified = fallback.EmailVerified
 	}
 	if primary.Name == "" {

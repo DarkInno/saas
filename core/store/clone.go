@@ -1,6 +1,10 @@
 package store
 
-import "github.com/DarkInno/gotenancy/core/types"
+import (
+	"maps"
+
+	"github.com/DarkInno/gotenancy/core/types"
+)
 
 func cloneTenant(tenant types.Tenant) types.Tenant {
 	if tenant.Config == nil {
@@ -13,4 +17,12 @@ func cloneTenant(tenant types.Tenant) types.Tenant {
 	}
 	tenant.Config = cloned
 	return tenant
+}
+
+func tenantsEqual(a types.Tenant, b types.Tenant) bool {
+	return a.ID == b.ID &&
+		a.Name == b.Name &&
+		a.Status == b.Status &&
+		a.PlanID == b.PlanID &&
+		maps.Equal(a.Config, b.Config)
 }

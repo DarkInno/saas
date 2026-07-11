@@ -17,5 +17,8 @@ type BillingEvent struct {
 	CurrentPeriodEnd *time.Time
 }
 
-// BillingHook receives subscription lifecycle changes.
+// BillingHook receives subscription lifecycle changes. Hooks that call back
+// into MemoryService must propagate the received context: it carries the
+// staged-read and re-entrant-mutation guard for the in-flight event. Replacing
+// it with context.Background can make a same-tenant mutation wait on itself.
 type BillingHook func(context.Context, BillingEvent) error

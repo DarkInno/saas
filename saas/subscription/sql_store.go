@@ -258,7 +258,7 @@ func (store *SQLStore) Update(ctx context.Context, subscription Subscription) er
 	if err != nil {
 		return err
 	}
-	return store.requireAffectedRow(result)
+	return store.requireUpdatedRow(ctx, subscription, result)
 }
 
 // Delete removes a subscription by tenant ID.
@@ -332,6 +332,28 @@ func (store *SQLStore) requireAffectedRow(result sql.Result) error {
 	}
 	if affected == 0 {
 		return ErrSubscriptionNotFound
+	}
+	return nil
+}
+
+func (store *SQLStore) requireUpdatedRow(ctx context.Context, desired Subscription, result sql.Result) error {
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected > 0 {
+		return nil
+	}
+	current, err := store.Get(ctx, desired.TenantID)
+	if err != nil {
+		return err
+	}
+	return confirmUpdatedSubscription(current, desired)
+}
+
+func confirmUpdatedSubscription(current Subscription, desired Subscription) error {
+	if !subscriptionsEqual(current, desired) {
+		return ErrSubscriptionConflict
 	}
 	return nil
 }

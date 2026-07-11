@@ -15,6 +15,15 @@ type Store interface {
 	Delete(ctx context.Context, id types.TenantID) error
 }
 
+// CompareAndSwapStore extends Store with an atomic conditional replacement.
+// CompareAndSwap replaces expected with updated only when the persisted tenant
+// still equals expected. Implementations return ErrTenantConflict when another
+// writer changed the tenant first.
+type CompareAndSwapStore interface {
+	Store
+	CompareAndSwap(ctx context.Context, expected types.Tenant, updated types.Tenant) error
+}
+
 // PagedStore extends Store with cursor-based tenant listing.
 type PagedStore interface {
 	Store
@@ -85,7 +94,7 @@ func pageTenants(tenants []types.Tenant, filter ListFilter) []types.Tenant {
 
 	start := filter.Offset
 	end := len(tenants)
-	if filter.Limit > 0 && start+filter.Limit < end {
+	if filter.Limit > 0 && filter.Limit < end-start {
 		end = start + filter.Limit
 	}
 	return tenants[start:end]

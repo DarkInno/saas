@@ -236,7 +236,7 @@ func (store *SQLStore) updateLink(ctx context.Context, link Link) error {
 	if err != nil {
 		return err
 	}
-	return requireAffectedLink(result)
+	return store.requireUpdatedLink(ctx, link, result)
 }
 
 type linkScanner interface {
@@ -294,6 +294,28 @@ func requireAffectedLink(result sql.Result) error {
 	}
 	if affected == 0 {
 		return ErrIdentityNotFound
+	}
+	return nil
+}
+
+func (store *SQLStore) requireUpdatedLink(ctx context.Context, expected Link, result sql.Result) error {
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected > 0 {
+		return nil
+	}
+	current, err := store.GetByExternal(ctx, expected.TenantID, expected.Provider, expected.Subject)
+	if err != nil {
+		return err
+	}
+	return confirmUpdatedLink(current, expected)
+}
+
+func confirmUpdatedLink(current Link, expected Link) error {
+	if !linksEqual(current, expected) {
+		return ErrIdentityConflict
 	}
 	return nil
 }

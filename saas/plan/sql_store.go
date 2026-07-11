@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/DarkInno/gotenancy/internal/sqlutil"
@@ -228,7 +229,7 @@ func (store *SQLStore) Update(ctx context.Context, plan Plan) error {
 	if err != nil {
 		return err
 	}
-	return store.requireAffectedRow(result)
+	return store.requireUpdatedRow(ctx, plan, result)
 }
 
 // Delete removes a plan by ID.
@@ -315,6 +316,28 @@ func (store *SQLStore) requireAffectedRow(result sql.Result) error {
 	}
 	if affected == 0 {
 		return ErrPlanNotFound
+	}
+	return nil
+}
+
+func (store *SQLStore) requireUpdatedRow(ctx context.Context, desired Plan, result sql.Result) error {
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected > 0 {
+		return nil
+	}
+	current, err := store.Get(ctx, desired.ID)
+	if err != nil {
+		return err
+	}
+	return confirmUpdatedPlan(current, desired)
+}
+
+func confirmUpdatedPlan(current Plan, desired Plan) error {
+	if !reflect.DeepEqual(current, desired) {
+		return ErrPlanConflict
 	}
 	return nil
 }

@@ -32,6 +32,7 @@ const (
 
 var _ Store = (*SQLStore)(nil)
 var _ PagedStore = (*SQLStore)(nil)
+var _ CompareAndSwapStore = (*SQLStore)(nil)
 
 // SQLStore persists tenant metadata through database/sql.
 //
@@ -230,7 +231,72 @@ func (store *SQLStore) Update(ctx context.Context, tenant types.Tenant) error {
 	if err != nil {
 		return err
 	}
-	return requireAffectedRow(result)
+	return store.requireUpdatedTenant(ctx, tenant, result)
+}
+
+// CompareAndSwap atomically replaces expected tenant metadata with updated.
+func (store *SQLStore) CompareAndSwap(ctx context.Context, expected types.Tenant, updated types.Tenant) (err error) {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := validateTenant(expected); err != nil {
+		return err
+	}
+	if err := validateTenant(updated); err != nil {
+		return err
+	}
+	if expected.ID != updated.ID {
+		return ErrInvalidTenant
+	}
+
+	tx, err := store.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return normalizeCompareAndSwapError(err)
+	}
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, tx.Rollback())
+		}
+	}()
+
+	query := fmt.Sprintf("SELECT id, name, status, plan_id, config FROM %s WHERE id = %s", store.table, store.placeholder(1))
+	if store.dialect != SQLDialectSQLite {
+		query += " FOR UPDATE"
+	}
+	current, err := scanTenant(tx.QueryRowContext(ctx, query, expected.ID.String()))
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrTenantNotFound
+	}
+	if err != nil {
+		return normalizeCompareAndSwapError(err)
+	}
+	if !tenantsEqual(current, expected) {
+		return ErrTenantConflict
+	}
+
+	if !tenantsEqual(current, updated) {
+		config, marshalErr := marshalConfig(updated.Config)
+		if marshalErr != nil {
+			return marshalErr
+		}
+		updateQuery := fmt.Sprintf(
+			"UPDATE %s SET name = %s, status = %s, plan_id = %s, config = %s WHERE id = %s",
+			store.table,
+			store.placeholder(1),
+			store.placeholder(2),
+			store.placeholder(3),
+			store.placeholder(4),
+			store.placeholder(5),
+		)
+		if _, err = tx.ExecContext(ctx, updateQuery, updated.Name, string(updated.Status), updated.PlanID, config, updated.ID.String()); err != nil {
+			return normalizeCompareAndSwapError(err)
+		}
+	}
+
+	if err = tx.Commit(); err != nil {
+		return normalizeCompareAndSwapError(err)
+	}
+	return nil
 }
 
 // Delete removes tenant metadata by ID.
@@ -288,6 +354,51 @@ func requireAffectedRow(result sql.Result) error {
 		return ErrTenantNotFound
 	}
 	return nil
+}
+
+func (store *SQLStore) requireUpdatedTenant(ctx context.Context, desired types.Tenant, result sql.Result) error {
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected > 0 {
+		return nil
+	}
+	current, err := store.Get(ctx, desired.ID)
+	if err != nil {
+		return err
+	}
+	return confirmUpdatedTenant(current, desired)
+}
+
+func confirmUpdatedTenant(current types.Tenant, desired types.Tenant) error {
+	if !tenantsEqual(current, desired) {
+		return ErrTenantConflict
+	}
+	return nil
+}
+
+func normalizeCompareAndSwapError(err error) error {
+	if err == nil {
+		return nil
+	}
+	message := strings.ToLower(err.Error())
+	for _, marker := range []string{
+		"deadlock",
+		"serialization failure",
+		"sqlstate 40001",
+		"could not serialize access",
+		"database is locked",
+		"database table is locked",
+		"sqlite_busy",
+		"lock wait timeout exceeded",
+		"try restarting transaction",
+	} {
+		if strings.Contains(message, marker) {
+			return errors.Join(ErrTenantConflict, err)
+		}
+	}
+	return err
 }
 
 func marshalConfig(config map[string]string) (string, error) {

@@ -32,7 +32,7 @@ func (plugin *Plugin) Initialize(db *gorm.DB) error {
 	if err := db.Callback().Create().Before("gorm:create").Register("gotenancy:create", plugin.fillTenantOnCreate); err != nil {
 		return err
 	}
-	if err := db.Callback().Update().Before("gorm:update").Register("gotenancy:update", plugin.addTenantCondition); err != nil {
+	if err := db.Callback().Update().Before("gorm:update").Register("gotenancy:update", plugin.guardUpdate); err != nil {
 		return err
 	}
 	if err := db.Callback().Delete().Before("gorm:delete").Register("gotenancy:delete", plugin.addTenantCondition); err != nil {

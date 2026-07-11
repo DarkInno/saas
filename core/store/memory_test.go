@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -61,6 +62,34 @@ func TestMemoryStoreRespectsContextCancellation(t *testing.T) {
 	}
 }
 
+func TestMemoryStoreCompareAndSwapRejectsStaleSnapshot(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	original := testTenant("tenant-a")
+	if err := store.Create(ctx, original); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	updated := original
+	updated.Status = types.TenantStatusSuspended
+	if err := store.CompareAndSwap(ctx, original, updated); err != nil {
+		t.Fatalf("CompareAndSwap() error = %v", err)
+	}
+	staleUpdate := original
+	staleUpdate.Name = "stale"
+	if err := store.CompareAndSwap(ctx, original, staleUpdate); !errors.Is(err, ErrTenantConflict) {
+		t.Fatalf("CompareAndSwap(stale) error = %v, want ErrTenantConflict", err)
+	}
+
+	got, err := store.Get(ctx, original.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if got.Status != types.TenantStatusSuspended || got.Name != original.Name {
+		t.Fatalf("tenant = %+v, want suspended without stale metadata", got)
+	}
+}
+
 func TestMemoryStoreListPagination(t *testing.T) {
 	ctx := context.Background()
 	store := NewMemoryStore()
@@ -94,6 +123,14 @@ func TestMemoryStoreListPagination(t *testing.T) {
 	}
 	if _, err := store.ListPage(ctx, PageFilter{Offset: 1, Limit: 1, Cursor: "tenant-a"}); !errors.Is(err, ErrInvalidListFilter) {
 		t.Fatalf("ListPage(cursor and offset) error = %v, want ErrInvalidListFilter", err)
+	}
+
+	page, err = store.List(ctx, ListFilter{Offset: 1, Limit: math.MaxInt})
+	if err != nil {
+		t.Fatalf("List(large limit) error = %v", err)
+	}
+	if len(page) != 2 || page[0].ID != "tenant-b" || page[1].ID != "tenant-c" {
+		t.Fatalf("List(large limit) = %+v, want tenant-b and tenant-c", page)
 	}
 }
 

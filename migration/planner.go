@@ -1,6 +1,7 @@
 package migration
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -114,12 +115,32 @@ func (planner Planner) SeedTenants(table string, tenants []types.Tenant) ([]Stat
 		if tenant.ID == "" || tenant.Status == "" {
 			return nil, ErrInvalidMigration
 		}
+		config := tenant.Config
+		if config == nil {
+			config = map[string]string{}
+		}
+		encodedConfig, err := json.Marshal(config)
+		if err != nil {
+			return nil, ErrInvalidMigration
+		}
 		statements = append(statements, Statement{
-			SQL:  fmt.Sprintf("INSERT INTO %s (id, name, status, plan_id) VALUES (?, ?, ?, ?)", table),
-			Args: []any{tenant.ID.String(), tenant.Name, string(tenant.Status), tenant.PlanID},
+			SQL:  fmt.Sprintf("INSERT INTO %s (id, name, status, plan_id, config) VALUES (%s)", table, planner.placeholders(5)),
+			Args: []any{tenant.ID.String(), tenant.Name, string(tenant.Status), tenant.PlanID, string(encodedConfig)},
 		})
 	}
 	return statements, nil
+}
+
+func (planner Planner) placeholders(count int) string {
+	parts := make([]string, count)
+	for i := range parts {
+		if planner.Dialect == DialectPostgres {
+			parts[i] = fmt.Sprintf("$%d", i+1)
+		} else {
+			parts[i] = "?"
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 // DetectDeletePolicy returns "soft" when softDeleteField exists, otherwise "hard".

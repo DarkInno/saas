@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math"
 	"reflect"
 	"testing"
 )
@@ -116,6 +117,14 @@ func TestMemoryServiceList(t *testing.T) {
 	if _, err := store.ListPage(ctx, PageFilter{Offset: 1, Limit: 1, Cursor: "enterprise"}); !errors.Is(err, ErrInvalidListFilter) {
 		t.Fatalf("ListPage(cursor and offset) error = %v, want ErrInvalidListFilter", err)
 	}
+
+	got, err = store.List(ctx, ListFilter{Offset: 1, Limit: math.MaxInt})
+	if err != nil {
+		t.Fatalf("List(large limit) error = %v", err)
+	}
+	if len(got) != 2 || got[0].ID != "pro" || got[1].ID != "starter" {
+		t.Fatalf("List(large limit) = %+v, want pro and starter", got)
+	}
 }
 
 func TestMemoryServiceValidation(t *testing.T) {
@@ -186,6 +195,15 @@ func TestNewSQLStoreValidationAndCodec(t *testing.T) {
 	}
 	if !reflect.DeepEqual(decodedQuotas, testPlan("starter").Quotas) {
 		t.Fatalf("unmarshalQuotas() = %#v, want plan quotas", decodedQuotas)
+	}
+}
+
+func TestConfirmUpdatedPlanRejectsConcurrentReplacement(t *testing.T) {
+	desired := testPlan("starter")
+	current := clonePlan(desired)
+	current.Name = "replacement"
+	if err := confirmUpdatedPlan(current, desired); !errors.Is(err, ErrPlanConflict) {
+		t.Fatalf("confirmUpdatedPlan() error = %v, want ErrPlanConflict", err)
 	}
 }
 

@@ -90,7 +90,7 @@ func pagePlans(plans []Plan, filter ListFilter) []Plan {
 
 	start := filter.Offset
 	end := len(plans)
-	if filter.Limit > 0 && start+filter.Limit < end {
+	if filter.Limit > 0 && filter.Limit < end-start {
 		end = start + filter.Limit
 	}
 	return plans[start:end]

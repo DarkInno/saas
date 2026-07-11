@@ -3,8 +3,10 @@ package notification
 import (
 	"context"
 	"errors"
+	"net"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNewSMTPNotifierValidation(t *testing.T) {
@@ -76,5 +78,72 @@ func TestBuildSMTPMessage(t *testing.T) {
 		if !strings.Contains(message, want) {
 			t.Fatalf("SMTP message %q does not contain %q", message, want)
 		}
+	}
+}
+
+func TestSMTPNotifierHonorsContextAfterDial(t *testing.T) {
+	notifier, err := NewSMTPNotifier(SMTPConfig{
+		Host:    "smtp.example.com",
+		From:    "noreply@example.com",
+		TLSMode: SMTPTLSModeNone,
+		Timeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("NewSMTPNotifier() error = %v", err)
+	}
+
+	clientConn, serverConn := net.Pipe()
+	defer serverConn.Close()
+	notifier.dial = func(context.Context, string, string) (net.Conn, error) {
+		return clientConn, nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	timer := time.AfterFunc(20*time.Millisecond, cancel)
+	defer timer.Stop()
+	started := time.Now()
+	err = notifier.Send(ctx, smtpTestMessage())
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Send() error = %v, want context canceled", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("Send() elapsed = %s, want prompt context cancellation", elapsed)
+	}
+}
+
+func TestSMTPNotifierAppliesTimeoutAfterDial(t *testing.T) {
+	notifier, err := NewSMTPNotifier(SMTPConfig{
+		Host:    "smtp.example.com",
+		From:    "noreply@example.com",
+		TLSMode: SMTPTLSModeNone,
+		Timeout: 20 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewSMTPNotifier() error = %v", err)
+	}
+
+	clientConn, serverConn := net.Pipe()
+	defer serverConn.Close()
+	notifier.dial = func(context.Context, string, string) (net.Conn, error) {
+		return clientConn, nil
+	}
+
+	started := time.Now()
+	if err := notifier.Send(context.Background(), smtpTestMessage()); err == nil {
+		t.Fatal("Send() error = nil, want SMTP timeout")
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("Send() elapsed = %s, want bounded by SMTP timeout", elapsed)
+	}
+}
+
+func smtpTestMessage() Message {
+	return Message{
+		TenantID: "tenant-a",
+		Channel:  ChannelEmail,
+		To:       "user@example.com",
+		Subject:  "Subject",
+		Body:     "Body",
 	}
 }

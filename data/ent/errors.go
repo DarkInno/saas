@@ -14,4 +14,7 @@ var (
 
 	// ErrTenantFieldNotFound reports that the configured tenant field does not exist on the mutation.
 	ErrTenantFieldNotFound = errors.New("gotenancy/ent: tenant field not found")
+
+	// ErrTenantFieldUpdate reports an attempt to update the tenant partition key from a tenant context.
+	ErrTenantFieldUpdate = errors.New("gotenancy/ent: tenant field cannot be updated in tenant context")
 )

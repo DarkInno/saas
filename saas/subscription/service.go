@@ -154,7 +154,7 @@ func pageSubscriptions(subscriptions []Subscription, filter ListFilter) []Subscr
 
 	start := filter.Offset
 	end := len(subscriptions)
-	if filter.Limit > 0 && start+filter.Limit < end {
+	if filter.Limit > 0 && filter.Limit < end-start {
 		end = start + filter.Limit
 	}
 	return subscriptions[start:end]

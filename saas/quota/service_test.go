@@ -3,7 +3,9 @@ package quota
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
+	"io"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -153,4 +155,97 @@ func TestNewSQLStoreValidation(t *testing.T) {
 	if _, err := NewSQLStore(db, WithSQLDialect("oracle")); !errors.Is(err, ErrUnsupportedSQLDialect) {
 		t.Fatalf("NewSQLStore(unsupported dialect) error = %v, want ErrUnsupportedSQLDialect", err)
 	}
+}
+
+func TestSQLStoreAddZeroSkipsMySQLNoopUpdate(t *testing.T) {
+	state := &quotaSQLTestState{used: 7}
+	db := sql.OpenDB(quotaSQLTestConnector{state: state})
+	t.Cleanup(func() { _ = db.Close() })
+	store, err := NewSQLStore(db)
+	if err != nil {
+		t.Fatalf("NewSQLStore() error = %v", err)
+	}
+
+	used, err := store.Add(context.Background(), "tenant-a", "api", PeriodDay, 0)
+	if err != nil {
+		t.Fatalf("Add(0) error = %v", err)
+	}
+	if used != 7 {
+		t.Fatalf("Add(0) used = %d, want 7", used)
+	}
+	if state.execs != 0 {
+		t.Fatalf("Add(0) UPDATE calls = %d, want zero", state.execs)
+	}
+}
+
+type quotaSQLTestState struct {
+	used  int64
+	execs int
+}
+
+type quotaSQLTestConnector struct {
+	state *quotaSQLTestState
+}
+
+func (connector quotaSQLTestConnector) Connect(context.Context) (driver.Conn, error) {
+	return &quotaSQLTestConn{state: connector.state}, nil
+}
+
+func (connector quotaSQLTestConnector) Driver() driver.Driver {
+	return quotaSQLTestDriver{state: connector.state}
+}
+
+type quotaSQLTestDriver struct {
+	state *quotaSQLTestState
+}
+
+func (driver quotaSQLTestDriver) Open(string) (driver.Conn, error) {
+	return &quotaSQLTestConn{state: driver.state}, nil
+}
+
+type quotaSQLTestConn struct {
+	state *quotaSQLTestState
+}
+
+func (*quotaSQLTestConn) Prepare(string) (driver.Stmt, error) {
+	return nil, errors.New("Prepare is not supported")
+}
+
+func (*quotaSQLTestConn) Close() error { return nil }
+
+func (*quotaSQLTestConn) Begin() (driver.Tx, error) { return quotaSQLTestTx{}, nil }
+
+func (*quotaSQLTestConn) BeginTx(context.Context, driver.TxOptions) (driver.Tx, error) {
+	return quotaSQLTestTx{}, nil
+}
+
+func (conn *quotaSQLTestConn) QueryContext(context.Context, string, []driver.NamedValue) (driver.Rows, error) {
+	return &quotaSQLTestRows{used: conn.state.used}, nil
+}
+
+func (conn *quotaSQLTestConn) ExecContext(context.Context, string, []driver.NamedValue) (driver.Result, error) {
+	conn.state.execs++
+	return driver.RowsAffected(0), nil
+}
+
+type quotaSQLTestTx struct{}
+
+func (quotaSQLTestTx) Commit() error   { return nil }
+func (quotaSQLTestTx) Rollback() error { return nil }
+
+type quotaSQLTestRows struct {
+	used int64
+	done bool
+}
+
+func (*quotaSQLTestRows) Columns() []string { return []string{"used"} }
+func (*quotaSQLTestRows) Close() error      { return nil }
+
+func (rows *quotaSQLTestRows) Next(dest []driver.Value) error {
+	if rows.done {
+		return io.EOF
+	}
+	rows.done = true
+	dest[0] = rows.used
+	return nil
 }

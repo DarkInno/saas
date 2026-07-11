@@ -43,9 +43,9 @@
 
 ## Cache Isolation
 
-- Tenant cache keys are prefixed as `t:{tenant_id}:`.
-- User-provided keys that already include tenant or global prefixes are rejected.
-- Host global keys require explicit opt-in.
+- Tenant cache keys use `t2:{base64url(tenant_id)}:{key}`. The unpadded Base64URL tenant component makes the tenant/key boundary unambiguous, including when either value contains colons.
+- The versioned `t2:` namespace prevents ambiguous legacy `t:` entries from overlapping new tenant keys. User-provided keys that already include either tenant prefix or the global prefix are rejected.
+- Host global keys remain `g:{key}` and require explicit opt-in.
 - In-memory cache adapters include bounded constructors.
 - The Redis adapter stores only exact keys produced by the cache layer and does not use broad key scans; wrap it with `TenantCache` for tenant isolation.
 - Production Redis clients should be configured through `go-redis` options with TLS, command timeouts, retry limits, and OpenTelemetry instrumentation appropriate to the deployment.

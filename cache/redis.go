@@ -3,7 +3,6 @@ package cache
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	redis "github.com/redis/go-redis/v9"
@@ -64,7 +63,7 @@ func NewRedisFromURL(rawURL string) (*Redis, error) {
 	}
 	options, err := redis.ParseURL(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidRedisConfig, err)
+		return nil, ErrInvalidRedisConfig
 	}
 	return NewRedisFromOptions(options)
 }

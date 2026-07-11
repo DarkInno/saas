@@ -40,12 +40,66 @@ func TestTenantCacheScopesKeys(t *testing.T) {
 	}
 }
 
+func TestTenantCacheColonInputsDoNotCollide(t *testing.T) {
+	memory := NewMemory()
+	cache := NewTenantCache(memory)
+	ctxA := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "a"})
+	ctxB := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "a:b"})
+
+	if err := cache.Set(ctxA, "b:profile", []byte("a"), 0); err != nil {
+		t.Fatalf("Set(ctxA) error = %v", err)
+	}
+	if err := cache.Set(ctxB, "profile", []byte("b"), 0); err != nil {
+		t.Fatalf("Set(ctxB) error = %v", err)
+	}
+
+	got, ok, err := cache.Get(ctxA, "b:profile")
+	if err != nil {
+		t.Fatalf("Get(ctxA) error = %v", err)
+	}
+	if !ok || string(got) != "a" {
+		t.Fatalf("Get(ctxA) = %q, %v; want a, true", got, ok)
+	}
+
+	got, ok, err = cache.Get(ctxB, "profile")
+	if err != nil {
+		t.Fatalf("Get(ctxB) error = %v", err)
+	}
+	if !ok || string(got) != "b" {
+		t.Fatalf("Get(ctxB) = %q, %v; want b, true", got, ok)
+	}
+}
+
+func TestKeyBuilderUsesVersionedUnambiguousTenantKeys(t *testing.T) {
+	builder := KeyBuilder{AllowHostGlobal: true}
+	tenant := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "a:b"})
+
+	got, err := builder.Build(tenant, "profile:summary")
+	if err != nil {
+		t.Fatalf("Build(tenant) error = %v", err)
+	}
+	if got != "t2:YTpi:profile:summary" {
+		t.Fatalf("Build(tenant) = %q, want %q", got, "t2:YTpi:profile:summary")
+	}
+
+	got, err = builder.Build(tenantctx.WithHost(context.Background()), "status")
+	if err != nil {
+		t.Fatalf("Build(host) error = %v", err)
+	}
+	if got != "g:status" {
+		t.Fatalf("Build(host) = %q, want %q", got, "g:status")
+	}
+}
+
 func TestTenantCacheRejectsUnsafeAndUnscopedKeys(t *testing.T) {
 	cache := NewTenantCache(NewMemory())
 	ctx := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "tenant-a"})
 
 	if err := cache.Set(ctx, "t:tenant-b:profile", []byte("x"), 0); !errors.Is(err, ErrUnsafeKey) {
 		t.Fatalf("Set(prefixed) error = %v, want ErrUnsafeKey", err)
+	}
+	if err := cache.Set(ctx, "t2:dGVuYW50LWI:profile", []byte("x"), 0); !errors.Is(err, ErrUnsafeKey) {
+		t.Fatalf("Set(versioned prefixed) error = %v, want ErrUnsafeKey", err)
 	}
 	if _, _, err := cache.Get(context.Background(), "profile"); !errors.Is(err, ErrNoTenant) {
 		t.Fatalf("Get(no tenant) error = %v, want ErrNoTenant", err)

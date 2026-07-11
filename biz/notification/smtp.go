@@ -82,6 +82,19 @@ func (notifier *SMTPNotifier) Send(ctx context.Context, message Message) (err er
 	if err := validateSMTPMessage(notifier.config, message); err != nil {
 		return err
 	}
+	defer func() {
+		if err != nil {
+			ctxErr := ctx.Err()
+			if ctxErr == nil {
+				if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
+					ctxErr = context.DeadlineExceeded
+				}
+			}
+			if ctxErr != nil {
+				err = errors.Join(err, ctxErr)
+			}
+		}
+	}()
 
 	from, err := parseSingleAddress(notifier.config.From)
 	if err != nil {
@@ -97,7 +110,7 @@ func (notifier *SMTPNotifier) Send(ctx context.Context, message Message) (err er
 	}
 
 	address := net.JoinHostPort(notifier.config.Host, strconv.Itoa(notifier.config.Port))
-	client, err := notifier.smtpClient(ctx, address)
+	client, stopDeadline, err := notifier.smtpClient(ctx, address)
 	if err != nil {
 		return err
 	}
@@ -107,6 +120,7 @@ func (notifier *SMTPNotifier) Send(ctx context.Context, message Message) (err er
 			err = errors.Join(err, client.Close())
 		}
 	}()
+	defer stopDeadline()
 
 	if err := notifier.secure(client); err != nil {
 		return err
@@ -140,26 +154,63 @@ func (notifier *SMTPNotifier) Send(ctx context.Context, message Message) (err er
 	return nil
 }
 
-func (notifier *SMTPNotifier) smtpClient(ctx context.Context, address string) (*smtp.Client, error) {
+func (notifier *SMTPNotifier) smtpClient(ctx context.Context, address string) (*smtp.Client, func(), error) {
+	conn, err := notifier.dial(ctx, "tcp", address)
+	if err != nil {
+		return nil, nil, err
+	}
+	stopDeadline, err := armSMTPDeadline(ctx, conn, notifier.config.Timeout)
+	if err != nil {
+		_ = conn.Close()
+		return nil, nil, err
+	}
+
+	closeOnError := func(err error) (*smtp.Client, func(), error) {
+		stopDeadline()
+		_ = conn.Close()
+		return nil, nil, err
+	}
+
 	switch notifier.config.TLSMode {
 	case SMTPTLSModeImplicitTLS:
-		conn, err := notifier.dial(ctx, "tcp", address)
-		if err != nil {
-			return nil, err
-		}
 		tlsConn := tls.Client(conn, notifier.tlsConfig())
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
-			_ = conn.Close()
-			return nil, err
+			return closeOnError(err)
 		}
-		return smtp.NewClient(tlsConn, notifier.config.ServerName)
-	default:
-		conn, err := notifier.dial(ctx, "tcp", address)
+		client, err := smtp.NewClient(tlsConn, notifier.config.ServerName)
 		if err != nil {
-			return nil, err
+			return closeOnError(err)
 		}
-		return smtp.NewClient(conn, notifier.config.ServerName)
+		return client, stopDeadline, nil
+	default:
+		client, err := smtp.NewClient(conn, notifier.config.ServerName)
+		if err != nil {
+			return closeOnError(err)
+		}
+		return client, stopDeadline, nil
 	}
+}
+
+func armSMTPDeadline(ctx context.Context, conn net.Conn, timeout time.Duration) (func(), error) {
+	deadline := time.Now().Add(timeout)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		deadline = ctxDeadline
+	}
+	if err := conn.SetDeadline(deadline); err != nil {
+		return nil, err
+	}
+
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			// Force any in-flight SMTP read or write to return. net/smtp does
+			// not accept contexts after the connection has been established.
+			_ = conn.SetDeadline(time.Now())
+		case <-done:
+		}
+	}()
+	return func() { close(done) }, nil
 }
 
 func (notifier *SMTPNotifier) secure(client *smtp.Client) error {

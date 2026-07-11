@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -192,6 +193,21 @@ func TestRedisCacheInvalidConfig(t *testing.T) {
 	}
 	if _, err := NewRedisFromURL("://bad"); !errors.Is(err, ErrInvalidRedisConfig) {
 		t.Fatalf("NewRedisFromURL(invalid) error = %v, want ErrInvalidRedisConfig", err)
+	}
+}
+
+func TestNewRedisFromURLDoesNotLeakCredentialsOnParseFailure(t *testing.T) {
+	const (
+		rawURL   = "redis://cache-user:super-secret@localhost/%zz"
+		password = "super-secret"
+	)
+
+	_, err := NewRedisFromURL(rawURL)
+	if !errors.Is(err, ErrInvalidRedisConfig) {
+		t.Fatalf("NewRedisFromURL() error = %v, want ErrInvalidRedisConfig", err)
+	}
+	if strings.Contains(err.Error(), password) || strings.Contains(err.Error(), rawURL) {
+		t.Fatalf("NewRedisFromURL() error leaked credentials: %q", err)
 	}
 }
 

@@ -201,8 +201,10 @@ func (store *SQLStore) mutateUsageOnce(ctx context.Context, tenantID types.Tenan
 
 	next := current + amount
 	if found {
-		if err := store.updateUsage(ctx, tx, tenantID, resource, period, next); err != nil {
-			return 0, err
+		if next != current {
+			if err := store.updateUsage(ctx, tx, tenantID, resource, period, next); err != nil {
+				return 0, err
+			}
 		}
 	} else {
 		if err := store.insertUsage(ctx, tx, tenantID, resource, period, next); err != nil {

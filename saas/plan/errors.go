@@ -9,6 +9,9 @@ var (
 	// ErrPlanAlreadyExists reports that a plan already exists.
 	ErrPlanAlreadyExists = errors.New("gotenancy/plan: plan already exists")
 
+	// ErrPlanConflict reports that a concurrent writer replaced a plan during update.
+	ErrPlanConflict = errors.New("gotenancy/plan: plan update conflict")
+
 	// ErrInvalidPlan reports invalid plan metadata.
 	ErrInvalidPlan = errors.New("gotenancy/plan: invalid plan")
 

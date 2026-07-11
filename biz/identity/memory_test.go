@@ -3,7 +3,9 @@ package identity
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
+	"io"
 	"reflect"
 	"testing"
 )
@@ -121,8 +123,112 @@ func TestNewSQLStoreValidationAndScan(t *testing.T) {
 	}
 }
 
+func TestSQLStoreLinkTreatsMySQLNoopUpdateAsSuccess(t *testing.T) {
+	db := sql.OpenDB(identityTestConnector{found: true})
+	t.Cleanup(func() { _ = db.Close() })
+	store, err := NewSQLStore(db)
+	if err != nil {
+		t.Fatalf("NewSQLStore() error = %v", err)
+	}
+	link := Link{
+		TenantID: "tenant-a", Provider: ProviderGoogle, Subject: "sub-1",
+		UserID: "u1", Email: "u1@example.com", EmailVerified: true,
+		Metadata: map[string]string{"org": "a"},
+	}
+
+	if err := store.Link(context.Background(), link); err != nil {
+		t.Fatalf("Link(existing unchanged identity) error = %v, want success", err)
+	}
+}
+
+func TestSQLStoreNoopUpdateStillReportsMissingIdentity(t *testing.T) {
+	db := sql.OpenDB(identityTestConnector{found: false})
+	t.Cleanup(func() { _ = db.Close() })
+	store, err := NewSQLStore(db)
+	if err != nil {
+		t.Fatalf("NewSQLStore() error = %v", err)
+	}
+	link := Link{TenantID: "tenant-a", Provider: ProviderGoogle, Subject: "sub-1", UserID: "u1", Email: "u1@example.com"}
+
+	err = store.requireUpdatedLink(context.Background(), link, driver.RowsAffected(0))
+	if !errors.Is(err, ErrIdentityNotFound) {
+		t.Fatalf("requireUpdatedLink() error = %v, want ErrIdentityNotFound", err)
+	}
+}
+
+func TestConfirmUpdatedLinkRejectsConcurrentReplacement(t *testing.T) {
+	desired := Link{TenantID: "tenant-a", Provider: ProviderGoogle, Subject: "sub-1", UserID: "u1", Email: "u1@example.com"}
+	current := desired
+	current.Email = "replacement@example.com"
+	if err := confirmUpdatedLink(current, desired); !errors.Is(err, ErrIdentityConflict) {
+		t.Fatalf("confirmUpdatedLink() error = %v, want ErrIdentityConflict", err)
+	}
+}
+
 type linkScannerFunc func(dest ...any) error
 
 func (fn linkScannerFunc) Scan(dest ...any) error {
 	return fn(dest...)
+}
+
+type identityTestConnector struct {
+	found bool
+}
+
+func (connector identityTestConnector) Connect(context.Context) (driver.Conn, error) {
+	return identityTestConn{found: connector.found}, nil
+}
+
+func (connector identityTestConnector) Driver() driver.Driver {
+	return identityTestDriver{found: connector.found}
+}
+
+type identityTestDriver struct {
+	found bool
+}
+
+func (driver identityTestDriver) Open(string) (driver.Conn, error) {
+	return identityTestConn{found: driver.found}, nil
+}
+
+type identityTestConn struct {
+	found bool
+}
+
+func (conn identityTestConn) Prepare(string) (driver.Stmt, error) {
+	return nil, errors.New("Prepare is not supported")
+}
+
+func (identityTestConn) Close() error { return nil }
+
+func (identityTestConn) Begin() (driver.Tx, error) {
+	return nil, errors.New("Begin is not supported")
+}
+
+func (identityTestConn) ExecContext(context.Context, string, []driver.NamedValue) (driver.Result, error) {
+	return driver.RowsAffected(0), nil
+}
+
+func (conn identityTestConn) QueryContext(context.Context, string, []driver.NamedValue) (driver.Rows, error) {
+	return &identityTestRows{found: conn.found}, nil
+}
+
+type identityTestRows struct {
+	found bool
+	done  bool
+}
+
+func (*identityTestRows) Columns() []string {
+	return []string{"tenant_id", "provider", "subject", "user_id", "email", "name", "email_verified", "metadata"}
+}
+
+func (*identityTestRows) Close() error { return nil }
+
+func (rows *identityTestRows) Next(dest []driver.Value) error {
+	if rows.done || !rows.found {
+		return io.EOF
+	}
+	rows.done = true
+	copy(dest, []driver.Value{"tenant-a", "google", "sub-1", "u1", "u1@example.com", "", true, `{"org":"a"}`})
+	return nil
 }

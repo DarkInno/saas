@@ -59,6 +59,7 @@ func TestSeedTenants(t *testing.T) {
 		Name:   "Tenant A",
 		Status: types.TenantStatusActive,
 		PlanID: "starter",
+		Config: map[string]string{"region": "us"},
 	}})
 	if err != nil {
 		t.Fatalf("SeedTenants() error = %v", err)
@@ -66,12 +67,29 @@ func TestSeedTenants(t *testing.T) {
 	if len(statements) != 1 {
 		t.Fatalf("SeedTenants() len = %d, want 1", len(statements))
 	}
-	wantSQL := "INSERT INTO tenants (id, name, status, plan_id) VALUES (?, ?, ?, ?)"
+	wantSQL := "INSERT INTO tenants (id, name, status, plan_id, config) VALUES (?, ?, ?, ?, ?)"
 	if statements[0].SQL != wantSQL {
 		t.Fatalf("SeedTenants SQL = %q, want %q", statements[0].SQL, wantSQL)
 	}
 	if got := statements[0].Args[0]; got != "tenant-a" {
 		t.Fatalf("SeedTenants first arg = %v, want tenant-a", got)
+	}
+	if got := statements[0].Args[4]; got != `{"region":"us"}` {
+		t.Fatalf("SeedTenants config arg = %v, want encoded config", got)
+	}
+
+	postgres, err := NewPlanner(DialectPostgres).SeedTenants("tenants", []types.Tenant{{
+		ID: "tenant-a", Status: types.TenantStatusActive,
+	}})
+	if err != nil {
+		t.Fatalf("SeedTenants(postgres) error = %v", err)
+	}
+	wantPostgres := "INSERT INTO tenants (id, name, status, plan_id, config) VALUES ($1, $2, $3, $4, $5)"
+	if postgres[0].SQL != wantPostgres {
+		t.Fatalf("SeedTenants(postgres) SQL = %q, want %q", postgres[0].SQL, wantPostgres)
+	}
+	if got := postgres[0].Args[4]; got != `{}` {
+		t.Fatalf("SeedTenants(postgres) nil config = %v, want {}", got)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 
 var _ Store = (*MemoryStore)(nil)
 var _ PagedStore = (*MemoryStore)(nil)
+var _ CompareAndSwapStore = (*MemoryStore)(nil)
 
 // MemoryStore is a thread-safe in-memory tenant metadata store.
 type MemoryStore struct {
@@ -119,6 +120,35 @@ func (store *MemoryStore) Update(ctx context.Context, tenant types.Tenant) error
 		return ErrTenantNotFound
 	}
 	store.tenants[tenant.ID] = cloneTenant(tenant)
+	return nil
+}
+
+// CompareAndSwap atomically replaces expected tenant metadata with updated.
+func (store *MemoryStore) CompareAndSwap(ctx context.Context, expected types.Tenant, updated types.Tenant) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := validateTenant(expected); err != nil {
+		return err
+	}
+	if err := validateTenant(updated); err != nil {
+		return err
+	}
+	if expected.ID != updated.ID {
+		return ErrInvalidTenant
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	current, ok := store.tenants[expected.ID]
+	if !ok {
+		return ErrTenantNotFound
+	}
+	if !tenantsEqual(current, expected) {
+		return ErrTenantConflict
+	}
+	store.tenants[updated.ID] = cloneTenant(updated)
 	return nil
 }
 

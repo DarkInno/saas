@@ -15,6 +15,9 @@ var (
 	// ErrTenantMismatch reports that a model already contains a different tenant ID.
 	ErrTenantMismatch = gotenancy.ErrTenantMismatch
 
+	// ErrTenantFieldUpdate reports an attempt to update the tenant partition key from a tenant context.
+	ErrTenantFieldUpdate = errors.New("gotenancy/gorm: tenant field cannot be updated in tenant context")
+
 	// ErrUnscopedRequiresHost reports that Unscoped is forbidden in tenant context.
 	ErrUnscopedRequiresHost = errors.New("gotenancy/gorm: unscoped requires host context")
 

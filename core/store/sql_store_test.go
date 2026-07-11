@@ -5,6 +5,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"github.com/DarkInno/gotenancy/core/types"
 )
 
 func TestNewSQLStoreValidation(t *testing.T) {
@@ -42,6 +44,35 @@ func TestNewSQLStoreValidation(t *testing.T) {
 	}
 	if _, err := NewSQLStore(db, WithSQLDialect("oracle")); !errors.Is(err, ErrUnsupportedSQLDialect) {
 		t.Fatalf("NewSQLStore(unsupported dialect) error = %v, want ErrUnsupportedSQLDialect", err)
+	}
+}
+
+func TestNormalizeCompareAndSwapError(t *testing.T) {
+	for _, message := range []string{
+		"database is locked",
+		"SQLITE_BUSY: database is locked",
+		"deadlock found when trying to get lock",
+		"Lock wait timeout exceeded; try restarting transaction",
+		"could not serialize access due to concurrent update",
+		"transaction failed with SQLSTATE 40001",
+	} {
+		err := normalizeCompareAndSwapError(errors.New(message))
+		if !errors.Is(err, ErrTenantConflict) {
+			t.Fatalf("normalizeCompareAndSwapError(%q) = %v, want ErrTenantConflict", message, err)
+		}
+	}
+	wantErr := errors.New("connection refused")
+	if err := normalizeCompareAndSwapError(wantErr); !errors.Is(err, wantErr) || errors.Is(err, ErrTenantConflict) {
+		t.Fatalf("normalizeCompareAndSwapError(non-conflict) = %v, want original error", err)
+	}
+}
+
+func TestConfirmUpdatedTenantRejectsConcurrentReplacement(t *testing.T) {
+	desired := testTenant("tenant-a")
+	current := desired
+	current.Status = types.TenantStatusSuspended
+	if err := confirmUpdatedTenant(current, desired); !errors.Is(err, ErrTenantConflict) {
+		t.Fatalf("confirmUpdatedTenant() error = %v, want ErrTenantConflict", err)
 	}
 }
 

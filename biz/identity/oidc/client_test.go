@@ -161,6 +161,46 @@ func TestCallbackRejectsUserInfoSubjectMismatch(t *testing.T) {
 	}
 }
 
+func TestMergeClaimsKeepsEmailVerificationBoundToEmail(t *testing.T) {
+	tests := []struct {
+		name     string
+		primary  claims
+		fallback claims
+		wantMail string
+		verified bool
+	}{
+		{
+			name:     "different fallback email cannot verify primary",
+			primary:  claims{Email: "unverified@example.com"},
+			fallback: claims{Email: "verified@example.com", EmailVerified: true},
+			wantMail: "unverified@example.com",
+			verified: false,
+		},
+		{
+			name:     "same fallback email can supply verification",
+			primary:  claims{Email: "user@example.com"},
+			fallback: claims{Email: "user@example.com", EmailVerified: true},
+			wantMail: "user@example.com",
+			verified: true,
+		},
+		{
+			name:     "fallback email and verification are adopted together",
+			fallback: claims{Email: "user@example.com", EmailVerified: true},
+			wantMail: "user@example.com",
+			verified: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mergeClaims(tt.primary, tt.fallback)
+			if got.Email != tt.wantMail || got.EmailVerified != tt.verified {
+				t.Fatalf("mergeClaims() email = %q, verified = %v; want %q, %v", got.Email, got.EmailVerified, tt.wantMail, tt.verified)
+			}
+		})
+	}
+}
+
 func TestCallbackRejectsAccessTokenHashMismatch(t *testing.T) {
 	ctx := context.Background()
 	client := testClient(t, testServerOptions{accessTokenHash: "bad-hash"})

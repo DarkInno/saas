@@ -1,6 +1,10 @@
 package identity
 
-import "github.com/DarkInno/gotenancy/core/types"
+import (
+	"maps"
+
+	"github.com/DarkInno/gotenancy/core/types"
+)
 
 // Assertion is a verified external identity claim. Applications must validate
 // OAuth/OIDC tokens, magic links, or SAML assertions before constructing it.
@@ -59,4 +63,15 @@ func (link Link) validate() error {
 func cloneLink(link Link) Link {
 	link.Metadata = cloneStringMap(link.Metadata)
 	return link
+}
+
+func linksEqual(a Link, b Link) bool {
+	return a.TenantID == b.TenantID &&
+		a.UserID == b.UserID &&
+		a.Provider == b.Provider &&
+		a.Subject == b.Subject &&
+		a.Email == b.Email &&
+		a.Name == b.Name &&
+		a.EmailVerified == b.EmailVerified &&
+		maps.Equal(a.Metadata, b.Metadata)
 }

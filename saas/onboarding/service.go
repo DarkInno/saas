@@ -2,10 +2,16 @@ package onboarding
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"maps"
+	"sync"
 	"time"
 
 	"github.com/DarkInno/gotenancy/biz/audit"
 	"github.com/DarkInno/gotenancy/biz/notification"
+	"github.com/DarkInno/gotenancy/core/store"
 	"github.com/DarkInno/gotenancy/core/types"
 	saasfeature "github.com/DarkInno/gotenancy/saas/feature"
 	saasplan "github.com/DarkInno/gotenancy/saas/plan"
@@ -16,6 +22,7 @@ import (
 
 // Service coordinates the default tenant onboarding flow.
 type Service struct {
+	mu            sync.Mutex
 	tenants       saastenant.Service
 	plans         saasplan.Service
 	subscriptions saassubscription.Service
@@ -23,6 +30,12 @@ type Service struct {
 	quotas        saasquota.Store
 	audit         audit.Store
 	notifier      notification.Notifier
+	sentWelcome   map[welcomeDeliveryKey]struct{}
+}
+
+type welcomeDeliveryKey struct {
+	tenantID  types.TenantID
+	messageID string
 }
 
 // Option configures onboarding integrations.
@@ -62,6 +75,7 @@ func New(tenants saastenant.Service, plans saasplan.Service, subscriptions saass
 		tenants:       tenants,
 		plans:         plans,
 		subscriptions: subscriptions,
+		sentWelcome:   make(map[welcomeDeliveryKey]struct{}),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -92,11 +106,18 @@ type Result struct {
 
 // Onboard creates the tenant, attaches the selected plan subscription, initializes
 // feature and quota state, records audit metadata, optionally sends a welcome
-// message, and activates the tenant unless SkipActivation is set.
+// message, and activates the tenant unless SkipActivation is set. Errors after
+// tenant creation return the completed portion of Result. Callers that omit a
+// tenant ID should reuse Result.Tenant.ID when retrying a partially completed
+// flow. Welcome Message.ID is stable and the in-process service suppresses
+// repeats; restart and multi-process idempotency require the Notifier to honor
+// Message.ID as its delivery idempotency key.
 func (service *Service) Onboard(ctx context.Context, input Input) (Result, error) {
 	if err := service.validate(input); err != nil {
 		return Result{}, err
 	}
+	service.mu.Lock()
+	defer service.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
@@ -106,63 +127,87 @@ func (service *Service) Onboard(ctx context.Context, input Input) (Result, error
 		return Result{}, err
 	}
 
-	created, err := service.tenants.Create(ctx, input.Tenant)
-	if err != nil {
-		return Result{}, err
-	}
-
+	created, _, err := service.createOrResumeTenant(ctx, input.Tenant)
 	result := Result{
 		Tenant:      created,
 		Plan:        selectedPlan,
 		QuotaLimits: quotaLimits(created.ID, selectedPlan.Quotas),
 	}
-
-	if service.features != nil {
-		if err := service.features.SetPlanDefaults(ctx, selectedPlan.ID, planFeatureFlags(selectedPlan.Features)); err != nil {
+	if err != nil {
+		if created.ID == "" {
 			return Result{}, err
 		}
-		if len(input.FeatureOverrides) > 0 {
-			if err := service.features.SetTenantOverrides(ctx, created.ID, input.FeatureOverrides); err != nil {
-				return Result{}, err
+		return result, err
+	}
+
+	subscription, subscribed, err := service.existingSubscription(ctx, created.ID, selectedPlan.ID, input.SubscriptionPeriodEnd)
+	if err != nil {
+		return result, err
+	}
+
+	// The active subscription is the durable initialization checkpoint. Until it
+	// exists, repeating feature/quota initialization is safe; once it exists,
+	// retries must not reset usage even when the tenant intentionally remains
+	// pending through SkipActivation or a prior activation failed.
+	initialize := !subscribed
+	if service.features != nil {
+		if initialize {
+			if err := service.features.SetPlanDefaults(ctx, selectedPlan.ID, planFeatureFlags(selectedPlan.Features)); err != nil {
+				return result, err
+			}
+			if len(input.FeatureOverrides) > 0 {
+				if err := service.features.SetTenantOverrides(ctx, created.ID, input.FeatureOverrides); err != nil {
+					return result, err
+				}
 			}
 		}
 		flags, err := service.features.List(ctx, created.ID, selectedPlan.ID)
 		if err != nil {
-			return Result{}, err
+			return result, err
 		}
 		result.Features = flags
 	}
 
-	if service.quotas != nil {
+	if service.quotas != nil && initialize {
 		for _, limit := range result.QuotaLimits {
 			if err := service.quotas.Reset(ctx, limit.TenantID, limit.Resource, limit.Period); err != nil {
-				return Result{}, err
+				return result, err
 			}
 		}
 	}
 
-	subscription, err := service.subscribe(ctx, created.ID, selectedPlan.ID, input.SubscriptionPeriodEnd)
-	if err != nil {
-		return Result{}, err
+	if !subscribed {
+		subscription, err = service.subscribeOrResume(ctx, created.ID, selectedPlan.ID, input.SubscriptionPeriodEnd)
+		if err != nil {
+			return result, err
+		}
 	}
 	result.Subscription = subscription
 
-	if !input.SkipActivation {
+	if !input.SkipActivation && created.Status != types.TenantStatusActive {
 		activated, err := service.tenants.Activate(ctx, created.ID)
 		if err != nil {
-			return Result{}, err
+			return result, err
 		}
 		result.Tenant = activated
 	}
 
 	if service.audit != nil {
-		if err := service.audit.Record(ctx, audit.Event{
+		event := audit.Event{
+			ID:       onboardingOperationID("audit", created.ID),
 			TenantID: created.ID,
 			Action:   "tenant.onboard",
 			Resource: "tenant:" + created.ID.String(),
 			Metadata: auditMetadata(selectedPlan.ID, result.Tenant.Status, input.AuditMetadata),
-		}); err != nil {
-			return Result{}, err
+		}
+		recorded, err := service.hasOnboardingAudit(ctx, event)
+		if err != nil {
+			return result, err
+		}
+		if !recorded {
+			if err := service.audit.Record(ctx, event); err != nil {
+				return result, err
+			}
 		}
 	}
 
@@ -171,12 +216,104 @@ func (service *Service) Onboard(ctx context.Context, input Input) (Result, error
 			return Result{}, ErrInvalidInput
 		}
 		message := cloneWelcome(created.ID, *input.Welcome)
-		if err := service.notifier.Send(ctx, message); err != nil {
-			return Result{}, err
+		if message.ID == "" {
+			message.ID = onboardingOperationID("welcome", created.ID)
+		}
+		if service.sentWelcome == nil {
+			service.sentWelcome = make(map[welcomeDeliveryKey]struct{})
+		}
+		deliveryKey := welcomeDeliveryKey{tenantID: created.ID, messageID: message.ID}
+		if _, sent := service.sentWelcome[deliveryKey]; !sent {
+			if err := service.notifier.Send(ctx, message); err != nil {
+				return result, err
+			}
+			service.sentWelcome[deliveryKey] = struct{}{}
 		}
 	}
 
 	return result, nil
+}
+
+func (service *Service) createOrResumeTenant(ctx context.Context, input saastenant.CreateInput) (types.Tenant, bool, error) {
+	created, err := service.tenants.Create(ctx, input)
+	if err == nil {
+		return created, true, nil
+	}
+	if created.ID != "" {
+		return created, true, err
+	}
+	if input.ID == "" || !errors.Is(err, store.ErrTenantAlreadyExists) {
+		return types.Tenant{}, false, err
+	}
+
+	current, getErr := service.tenants.Get(ctx, input.ID)
+	if getErr != nil {
+		return types.Tenant{}, false, getErr
+	}
+	if current.Name != input.Name || current.PlanID != input.PlanID || !maps.Equal(current.Config, input.Config) {
+		return types.Tenant{}, false, ErrInvalidInput
+	}
+	if current.Status != types.TenantStatusPending && current.Status != types.TenantStatusActive {
+		return types.Tenant{}, false, ErrInvalidInput
+	}
+	return current, false, nil
+}
+
+func (service *Service) subscribeOrResume(ctx context.Context, tenantID types.TenantID, planID string, periodEnd *time.Time) (saassubscription.Subscription, error) {
+	subscription, err := service.subscribe(ctx, tenantID, planID, periodEnd)
+	if err == nil {
+		return subscription, nil
+	}
+	if !errors.Is(err, saassubscription.ErrSubscriptionAlreadyExists) {
+		return saassubscription.Subscription{}, err
+	}
+
+	current, found, getErr := service.existingSubscription(ctx, tenantID, planID, periodEnd)
+	if getErr != nil {
+		return saassubscription.Subscription{}, getErr
+	}
+	if !found {
+		return saassubscription.Subscription{}, saassubscription.ErrSubscriptionNotFound
+	}
+	return current, nil
+}
+
+func (service *Service) existingSubscription(ctx context.Context, tenantID types.TenantID, planID string, periodEnd *time.Time) (saassubscription.Subscription, bool, error) {
+	current, err := service.subscriptions.Get(ctx, tenantID)
+	if errors.Is(err, saassubscription.ErrSubscriptionNotFound) {
+		return saassubscription.Subscription{}, false, nil
+	}
+	if err != nil {
+		return saassubscription.Subscription{}, false, err
+	}
+	if current.PlanID != planID || current.Status != saassubscription.StatusActive {
+		return saassubscription.Subscription{}, false, ErrInvalidInput
+	}
+	if (periodEnd == nil) != (current.CurrentPeriodEnd == nil) {
+		return saassubscription.Subscription{}, false, ErrInvalidInput
+	}
+	if periodEnd != nil && !current.CurrentPeriodEnd.Equal(*periodEnd) {
+		return saassubscription.Subscription{}, false, ErrInvalidInput
+	}
+	return current, true, nil
+}
+
+func (service *Service) hasOnboardingAudit(ctx context.Context, target audit.Event) (bool, error) {
+	events, err := service.audit.List(ctx, target.TenantID)
+	if err != nil {
+		return false, err
+	}
+	for _, event := range events {
+		if event.ID == target.ID || (event.Action == target.Action && event.Resource == target.Resource) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func onboardingOperationID(kind string, tenantID types.TenantID) string {
+	sum := sha256.Sum256([]byte(kind + "\x00" + tenantID.String()))
+	return "onboard_" + kind + "_" + hex.EncodeToString(sum[:16])
 }
 
 func (service *Service) validate(input Input) error {

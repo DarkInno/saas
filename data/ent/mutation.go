@@ -3,10 +3,13 @@ package enttenant
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"strings"
 
 	"entgo.io/ent"
 
 	"github.com/DarkInno/gotenancy"
+	"github.com/DarkInno/gotenancy/core/types"
 	"github.com/DarkInno/gotenancy/data"
 )
 
@@ -67,12 +70,86 @@ func (filter MutationFilter) Apply(ctx context.Context, mutation Mutation) error
 			return fmt.Errorf("%w: %s: %v", ErrTenantFieldNotFound, config.TenantField, err)
 		}
 		return nil
-	case op.Is(ent.OpUpdate), op.Is(ent.OpUpdateOne), op.Is(ent.OpDelete), op.Is(ent.OpDeleteOne):
+	case op.Is(ent.OpUpdate), op.Is(ent.OpUpdateOne):
+		if invalidTenantFieldUpdate(mutation, config.TenantField, tenantID.String()) {
+			return ErrTenantFieldUpdate
+		}
+		mutation.WhereP(selectorPredicate(config, tenantID))
+		return nil
+	case op.Is(ent.OpDelete), op.Is(ent.OpDeleteOne):
 		mutation.WhereP(selectorPredicate(config, tenantID))
 		return nil
 	default:
 		return ErrUnsupportedMutation
 	}
+}
+
+func invalidTenantFieldUpdate(mutation Mutation, tenantField, tenantID string) bool {
+	fields := []string{tenantField}
+	if index := strings.LastIndexByte(tenantField, '.'); index >= 0 {
+		fields = append(fields, tenantField[index+1:])
+	}
+	matchedSet := false
+	for _, field := range fields {
+		if value, ok := mutation.Field(field); ok {
+			if !tenantMutationValueMatches(value, tenantID) {
+				return true
+			}
+			matchedSet = true
+		}
+	}
+
+	type fieldsMutation interface{ Fields() []string }
+	type addedFieldsMutation interface{ AddedFields() []string }
+	type clearedFieldsMutation interface{ ClearedFields() []string }
+
+	if mutation, ok := mutation.(fieldsMutation); ok {
+		for _, changedField := range mutation.Fields() {
+			if tenantMutationFieldMatches(changedField, fields) && !matchedSet {
+				return true
+			}
+		}
+	}
+	if mutation, ok := mutation.(addedFieldsMutation); ok {
+		for _, changedField := range mutation.AddedFields() {
+			if tenantMutationFieldMatches(changedField, fields) {
+				return true
+			}
+		}
+	}
+	if mutation, ok := mutation.(clearedFieldsMutation); ok {
+		for _, changedField := range mutation.ClearedFields() {
+			if tenantMutationFieldMatches(changedField, fields) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func tenantMutationValueMatches(value ent.Value, tenantID string) bool {
+	reflected := reflect.ValueOf(value)
+	for reflected.IsValid() && (reflected.Kind() == reflect.Pointer || reflected.Kind() == reflect.Interface) {
+		if reflected.IsNil() {
+			return false
+		}
+		reflected = reflected.Elem()
+	}
+	if !reflected.IsValid() {
+		return false
+	}
+	stringType := reflect.TypeOf("")
+	tenantIDType := reflect.TypeOf(types.TenantID(""))
+	return (reflected.Type() == stringType || reflected.Type() == tenantIDType) && reflected.String() == tenantID
+}
+
+func tenantMutationFieldMatches(changed string, tenantFields []string) bool {
+	for _, tenantField := range tenantFields {
+		if strings.EqualFold(changed, tenantField) {
+			return true
+		}
+	}
+	return false
 }
 
 // Hook returns an Ent mutation hook that enforces tenant isolation before mutation execution.

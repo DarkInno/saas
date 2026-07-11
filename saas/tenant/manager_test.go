@@ -3,6 +3,7 @@ package tenant
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	tenantctx "github.com/DarkInno/gotenancy/core/context"
@@ -71,6 +72,49 @@ func TestCreateRollsBackWhenSeederFails(t *testing.T) {
 	}
 	if _, err := backing.Get(ctx, "tenant-a"); !errors.Is(err, store.ErrTenantNotFound) {
 		t.Fatalf("store.Get() after rollback error = %v, want ErrTenantNotFound", err)
+	}
+}
+
+func TestCreateReturnsTenantWhenSeederRollbackFails(t *testing.T) {
+	ctx := context.Background()
+	backing := store.NewMemoryStore()
+	seedErr := errors.New("seed failed")
+	deleteErr := errors.New("delete failed")
+	manager := New(&deleteErrorStore{Store: backing, err: deleteErr}, WithSeeder(func(context.Context, types.Tenant) error {
+		return seedErr
+	}))
+
+	created, err := manager.Create(ctx, CreateInput{ID: "tenant-a", Name: "Tenant A"})
+	if created.ID != "tenant-a" {
+		t.Fatalf("Create() partial tenant = %+v, want tenant-a", created)
+	}
+	if !errors.Is(err, seedErr) || !errors.Is(err, deleteErr) {
+		t.Fatalf("Create() error = %v, want joined seed and delete errors", err)
+	}
+	if _, err := backing.Get(ctx, "tenant-a"); err != nil {
+		t.Fatalf("backing.Get() error = %v, want tenant retained after failed rollback", err)
+	}
+}
+
+func TestCreateReturnsGeneratedTenantWhenAuditFails(t *testing.T) {
+	ctx := context.Background()
+	backing := store.NewMemoryStore()
+	wantErr := errors.New("audit failed")
+	manager := New(
+		backing,
+		WithIDGenerator(func(context.Context) (types.TenantID, error) { return "generated-id", nil }),
+		WithAuditor(func(context.Context, Event) error { return wantErr }),
+	)
+
+	created, err := manager.Create(ctx, CreateInput{Name: "Tenant A"})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Create() error = %v, want audit error", err)
+	}
+	if created.ID != "generated-id" || created.Status != types.TenantStatusPending {
+		t.Fatalf("Create() partial tenant = %+v, want generated pending tenant", created)
+	}
+	if _, err := backing.Get(ctx, created.ID); err != nil {
+		t.Fatalf("backing.Get() error = %v, want persisted tenant", err)
 	}
 }
 
@@ -213,4 +257,102 @@ func TestHardDeleteRequiresHostAndAllowedState(t *testing.T) {
 	if err := manager.HardDelete(hostCtx, pending.ID); !errors.Is(err, ErrInvalidState) {
 		t.Fatalf("HardDelete(pending) error = %v, want ErrInvalidState", err)
 	}
+}
+
+func TestConcurrentMetadataUpdateAndSuspendPreserveBothChanges(t *testing.T) {
+	ctx := context.Background()
+	backing := store.NewMemoryStore()
+	barrier := &barrierCompareAndSwapStore{
+		CompareAndSwapStore: backing,
+		release:             make(chan struct{}),
+	}
+	manager := New(barrier)
+	if err := backing.Create(ctx, types.Tenant{
+		ID: "tenant-a", Name: "before", PlanID: "starter", Status: types.TenantStatusActive,
+	}); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	errs := make(chan error, 2)
+	go func() {
+		_, err := manager.Update(ctx, UpdateInput{ID: "tenant-a", Name: "after", PlanID: "pro"})
+		errs <- err
+	}()
+	go func() {
+		_, err := manager.Suspend(ctx, "tenant-a")
+		errs <- err
+	}()
+
+	for range 2 {
+		if err := <-errs; err != nil {
+			t.Fatalf("concurrent operation error = %v", err)
+		}
+	}
+
+	got, err := backing.Get(ctx, "tenant-a")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if got.Status != types.TenantStatusSuspended || got.Name != "after" || got.PlanID != "pro" {
+		t.Fatalf("tenant after concurrent operations = %+v, want suspended/after/pro", got)
+	}
+}
+
+func TestManagerBoundsCompareAndSwapRetries(t *testing.T) {
+	ctx := context.Background()
+	backing := store.NewMemoryStore()
+	if err := backing.Create(ctx, types.Tenant{ID: "tenant-a", Status: types.TenantStatusActive}); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	conflicts := &alwaysConflictStore{CompareAndSwapStore: backing}
+	manager := New(conflicts)
+
+	_, err := manager.Update(ctx, UpdateInput{ID: "tenant-a", Name: "updated"})
+	if !errors.Is(err, store.ErrTenantConflict) {
+		t.Fatalf("Update() error = %v, want ErrTenantConflict", err)
+	}
+	if conflicts.calls != maxCompareAndSwapAttempts {
+		t.Fatalf("CompareAndSwap calls = %d, want %d", conflicts.calls, maxCompareAndSwapAttempts)
+	}
+}
+
+type barrierCompareAndSwapStore struct {
+	store.CompareAndSwapStore
+	mu      sync.Mutex
+	calls   int
+	release chan struct{}
+}
+
+type deleteErrorStore struct {
+	store.Store
+	err error
+}
+
+func (store *deleteErrorStore) Delete(context.Context, types.TenantID) error {
+	return store.err
+}
+
+type alwaysConflictStore struct {
+	store.CompareAndSwapStore
+	calls int
+}
+
+func (wrapper *alwaysConflictStore) CompareAndSwap(context.Context, types.Tenant, types.Tenant) error {
+	wrapper.calls++
+	return store.ErrTenantConflict
+}
+
+func (store *barrierCompareAndSwapStore) CompareAndSwap(ctx context.Context, expected types.Tenant, updated types.Tenant) error {
+	store.mu.Lock()
+	store.calls++
+	call := store.calls
+	if call == 2 {
+		close(store.release)
+	}
+	store.mu.Unlock()
+
+	if call <= 2 {
+		<-store.release
+	}
+	return store.CompareAndSwapStore.CompareAndSwap(ctx, expected, updated)
 }

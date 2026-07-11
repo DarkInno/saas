@@ -202,6 +202,74 @@ func TestFilterMutationUpdateAddsTenantPredicate(t *testing.T) {
 	}
 }
 
+func TestFilterMutationUpdateRejectsTenantFieldChange(t *testing.T) {
+	ctx := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "tenant-a"})
+
+	for _, test := range []struct {
+		name   string
+		config Config
+		field  string
+	}{
+		{name: "default field", field: "tenant_id"},
+		{name: "custom field", config: Config{TenantField: "account_id"}, field: "account_id"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			mutation := newFakeMutation(entgo.OpUpdate)
+			mutation.fields[test.field] = "tenant-b"
+
+			err := FilterMutation(ctx, mutation, test.config)
+			if !errors.Is(err, ErrTenantFieldUpdate) {
+				t.Fatalf("FilterMutation(update tenant field) error = %v, want ErrTenantFieldUpdate", err)
+			}
+			if len(mutation.predicates) != 0 {
+				t.Fatalf("rejected mutation predicates = %d, want 0", len(mutation.predicates))
+			}
+		})
+	}
+
+	sameTenantMutation := newFakeMutation(entgo.OpUpdate)
+	sameTenantMutation.fields["tenant_id"] = "tenant-a"
+	if err := FilterMutation(ctx, sameTenantMutation, Config{}); err != nil {
+		t.Fatalf("FilterMutation(same tenant field update) error = %v", err)
+	}
+	if len(sameTenantMutation.predicates) != 1 {
+		t.Fatalf("same-tenant mutation predicates = %d, want 1", len(sameTenantMutation.predicates))
+	}
+
+	hostMutation := newFakeMutation(entgo.OpUpdate)
+	hostMutation.fields["tenant_id"] = "tenant-b"
+	if err := FilterMutation(tenantctx.WithHost(context.Background()), hostMutation, Config{}); err != nil {
+		t.Fatalf("FilterMutation(host tenant field update) error = %v", err)
+	}
+}
+
+func TestFilterMutationUpdateRejectsUnprovableTenantFieldChanges(t *testing.T) {
+	ctx := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "tenant-a"})
+	tests := []struct {
+		name    string
+		fields  []string
+		added   []string
+		cleared []string
+	}{
+		{name: "set without value", fields: []string{"tenant_id"}},
+		{name: "add", added: []string{"tenant_id"}},
+		{name: "clear", cleared: []string{"tenant_id"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mutation := &fakeTrackedMutation{
+				fakeMutation: newFakeMutation(entgo.OpUpdate),
+				fields:       test.fields,
+				added:        test.added,
+				cleared:      test.cleared,
+			}
+			if err := FilterMutation(ctx, mutation, Config{}); !errors.Is(err, ErrTenantFieldUpdate) {
+				t.Fatalf("FilterMutation(%s tenant field) error = %v, want ErrTenantFieldUpdate", test.name, err)
+			}
+		})
+	}
+}
+
 func TestFilterMutationDeleteAddsSoftDeletePredicate(t *testing.T) {
 	ctx := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "tenant-a"})
 	mutation := newFakeMutation(entgo.OpDelete)
@@ -334,6 +402,25 @@ func (mutation *fakeMutation) sql() (string, []any) {
 
 type fakeEntMutation struct {
 	*fakeMutation
+}
+
+type fakeTrackedMutation struct {
+	*fakeMutation
+	fields  []string
+	added   []string
+	cleared []string
+}
+
+func (mutation *fakeTrackedMutation) Fields() []string {
+	return mutation.fields
+}
+
+func (mutation *fakeTrackedMutation) AddedFields() []string {
+	return mutation.added
+}
+
+func (mutation *fakeTrackedMutation) ClearedFields() []string {
+	return mutation.cleared
 }
 
 func (mutation *fakeEntMutation) Type() string {

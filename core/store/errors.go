@@ -9,6 +9,9 @@ var (
 	// ErrTenantAlreadyExists reports that a tenant already exists in the store.
 	ErrTenantAlreadyExists = errors.New("gotenancy/store: tenant already exists")
 
+	// ErrTenantConflict reports that tenant metadata changed after it was read.
+	ErrTenantConflict = errors.New("gotenancy/store: tenant update conflict")
+
 	// ErrInvalidTenant reports that tenant metadata is not valid for persistence.
 	ErrInvalidTenant = errors.New("gotenancy/store: invalid tenant")
 
