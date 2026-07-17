@@ -100,7 +100,7 @@ jobs:
         run: |
           $sqlContractCoverageProfile = Join-Path $env:RUNNER_TEMP 'gotenancy-sql-contract-coverage.out'
           ./tests/run-integration.ps1 -CoverageProfile $sqlContractCoverageProfile
-          go tool cover -func=$sqlContractCoverageProfile | Out-File -FilePath "$sqlContractCoverageProfile.txt" -Encoding utf8
+          go tool cover "-func=$sqlContractCoverageProfile" | Out-File -FilePath "$sqlContractCoverageProfile.txt" -Encoding utf8
       - name: Upload SQL-contract coverage artifact
         uses: actions/upload-artifact@v4
         with:
