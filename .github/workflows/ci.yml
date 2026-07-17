@@ -87,8 +87,6 @@ jobs:
   integration:
     name: integration (mysql, postgres, redis)
     runs-on: ubuntu-latest
-    env:
-      SQL_CONTRACT_COVERAGE_PROFILE: ${{ runner.temp }}/gotenancy-sql-contract-coverage.out
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -100,8 +98,9 @@ jobs:
       - name: Run disposable integration tests with SQL-contract coverage
         shell: pwsh
         run: |
-          ./tests/run-integration.ps1 -CoverageProfile $env:SQL_CONTRACT_COVERAGE_PROFILE
-          go tool cover -func=$env:SQL_CONTRACT_COVERAGE_PROFILE | Out-File -FilePath "$env:SQL_CONTRACT_COVERAGE_PROFILE.txt" -Encoding utf8
+          $sqlContractCoverageProfile = Join-Path $env:RUNNER_TEMP 'gotenancy-sql-contract-coverage.out'
+          ./tests/run-integration.ps1 -CoverageProfile $sqlContractCoverageProfile
+          go tool cover -func=$sqlContractCoverageProfile | Out-File -FilePath "$sqlContractCoverageProfile.txt" -Encoding utf8
       - name: Upload SQL-contract coverage artifact
         uses: actions/upload-artifact@v4
         with:
@@ -115,10 +114,6 @@ jobs:
     name: coverage
     needs: integration
     runs-on: ubuntu-latest
-    env:
-      UNIT_COVERAGE_PROFILE: ${{ runner.temp }}/gotenancy-unit-coverage.out
-      COVERAGE_PROFILE: ${{ runner.temp }}/gotenancy-coverage.out
-      SQL_CONTRACT_COVERAGE_DIRECTORY: ${{ runner.temp }}/gotenancy-sql-contract-coverage
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -134,15 +129,22 @@ jobs:
           path: ${{ runner.temp }}/gotenancy-sql-contract-coverage
       - name: Generate atomic unit coverage profile
         shell: pwsh
-        run: go test -count=1 -covermode=atomic -coverpkg=./... -coverprofile=$env:UNIT_COVERAGE_PROFILE ./...
+        run: |
+          $unitCoverageProfile = Join-Path $env:RUNNER_TEMP 'gotenancy-unit-coverage.out'
+          go test -count=1 -covermode=atomic -coverpkg=./... "-coverprofile=$unitCoverageProfile" ./...
       - name: Merge unit and SQL-contract coverage
         shell: pwsh
         run: |
-          $sqlProfile = Join-Path $env:SQL_CONTRACT_COVERAGE_DIRECTORY 'gotenancy-sql-contract-coverage.out'
-          ./tests/merge-coverage.ps1 -Profiles @($env:UNIT_COVERAGE_PROFILE, $sqlProfile) -Output $env:COVERAGE_PROFILE
+          $unitCoverageProfile = Join-Path $env:RUNNER_TEMP 'gotenancy-unit-coverage.out'
+          $sqlContractCoverageDirectory = Join-Path $env:RUNNER_TEMP 'gotenancy-sql-contract-coverage'
+          $sqlContractCoverageProfile = Join-Path $sqlContractCoverageDirectory 'gotenancy-sql-contract-coverage.out'
+          $coverageProfile = Join-Path $env:RUNNER_TEMP 'gotenancy-coverage.out'
+          ./tests/merge-coverage.ps1 -Profiles @($unitCoverageProfile, $sqlContractCoverageProfile) -Output $coverageProfile
       - name: Enforce coverage floor
         shell: pwsh
-        run: ./tests/check-coverage.ps1 -Profile $env:COVERAGE_PROFILE -Minimum 65
+        run: |
+          $coverageProfile = Join-Path $env:RUNNER_TEMP 'gotenancy-coverage.out'
+          ./tests/check-coverage.ps1 -Profile $coverageProfile -Minimum 65
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
