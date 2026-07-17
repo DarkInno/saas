@@ -3,6 +3,16 @@ param([switch]$KeepServices)
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $composeFile = Join-Path $PSScriptRoot 'compose.yaml'
+$managedEnvironmentVariables = @(
+    'GOTENANCY_MYSQL_DSN',
+    'GOTENANCY_POSTGRES_DSN',
+    'GOTENANCY_REDIS_ADDR',
+    'GOTENANCY_REDIS_DB'
+)
+$previousEnvironment = @{}
+foreach ($name in $managedEnvironmentVariables) {
+    $previousEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+}
 
 function Invoke-Checked {
     param([string]$File, [string[]]$Arguments)
@@ -32,9 +42,14 @@ try {
     & docker compose -f $composeFile logs --no-color
     throw
 } finally {
-    Remove-Item Env:GOTENANCY_MYSQL_DSN, Env:GOTENANCY_POSTGRES_DSN, Env:GOTENANCY_REDIS_ADDR, Env:GOTENANCY_REDIS_DB -ErrorAction SilentlyContinue
-    if (-not $KeepServices) {
-        & docker compose -f $composeFile down --volumes --remove-orphans
+    try {
+        foreach ($name in $managedEnvironmentVariables) {
+            [Environment]::SetEnvironmentVariable($name, $previousEnvironment[$name], 'Process')
+        }
+        if (-not $KeepServices) {
+            Invoke-Checked docker @('compose', '-f', $composeFile, 'down', '--volumes', '--remove-orphans')
+        }
+    } finally {
+        Pop-Location
     }
-    Pop-Location
 }
