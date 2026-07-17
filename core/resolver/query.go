@@ -32,6 +32,9 @@ func (contrib QueryContrib) Resolve(r *http.Request) (types.TenantID, bool, erro
 	if r == nil {
 		return "", false, ErrNilRequest
 	}
+	if r.URL == nil {
+		return "", false, ErrNilURL
+	}
 
 	values, ok := r.URL.Query()[contrib.name]
 	if !ok || len(values) == 0 {

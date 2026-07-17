@@ -68,6 +68,14 @@ func TestQueryContrib(t *testing.T) {
 	}
 }
 
+func TestQueryContribRejectsRequestWithoutURL(t *testing.T) {
+	request := &http.Request{Header: make(http.Header)}
+	_, _, err := NewQueryContrib("", types.TenantIDStrategyString).Resolve(request)
+	if !errors.Is(err, ErrNilURL) {
+		t.Fatalf("Resolve(request without URL) error = %v, want ErrNilURL", err)
+	}
+}
+
 func TestDomainContrib(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://tenant-a.example.com:8080/path", nil)
 
