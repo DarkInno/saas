@@ -2,7 +2,7 @@ package migration
 
 import "github.com/DarkInno/saas/core/types"
 
-// Migrator defines tenant-schema migration planning operations.
+// Migrator defines tenant-aware table migration planning operations.
 type Migrator interface {
 	AddTenantColumn(table string, tenantField string, fieldType string) (string, error)
 	CreateSoftDeleteUniqueIndex(table string, indexName string, tenantField string, businessFields []string, softDeleteField string) (string, error)

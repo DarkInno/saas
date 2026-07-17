@@ -14,9 +14,9 @@ The module should not require Go `1.25+` dependencies without an explicit compat
 
 ## Isolation Model
 
-SaaS supports shared-database isolation with a required `tenant_id` boundary.
+SaaS supports only shared-database, shared-schema isolation with a required `tenant_id` boundary on tenant-owned rows.
 
-Independent database and hybrid isolation models are not part of the current API.
+Database-per-tenant, schema-per-tenant, and hybrid isolation models are not part of the current API. The module does not provision tenant databases or schemas, route tenant connections, or switch schemas at runtime.
 
 ## Adapters
 

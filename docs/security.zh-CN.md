@@ -7,6 +7,8 @@
 - 租户操作使用 `core/context.WithTenant`。
 - 主机操作使用 `core/context.WithHost`。
 - 长生命周期任务应保存租户元数据，并显式重建上下文。
+- 租户和主机状态使用私有、包专属的带类型 Context 键，而非字符串或导出的键。`core/context` 外的代码无法构造同一个键，因此 OpenTelemetry、日志和其他库通过标准 `context.WithValue` 写入的值不会与 SaaS 状态碰撞或将其覆盖。
+- 请使用 `WithTenant`、`WithHost`、`FromContext` 和 `IsHost`，而不是直接设置 Context 值。后续的 `WithTenant` 或 `WithHost` 调用会有意在其子 Context 中替换 SaaS 状态。
 
 ## GORM 防护措施
 

@@ -15,6 +15,8 @@ Public package overview.
 
 ## Data Isolation
 
+SaaS supports one topology: a shared application database and shared tables, with a required `tenant_id` on every tenant-owned row. It does not route tenant connections or switch schemas, so database-per-tenant, schema-per-tenant, and hybrid models are outside this module's contract.
+
 | Package | Purpose |
 |---|---|
 | `data` | ORM-independent parameterized tenant filter conditions. |

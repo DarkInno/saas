@@ -7,6 +7,8 @@
 - Tenant operations use `core/context.WithTenant`.
 - Host operations use `core/context.WithHost`.
 - Long-lived jobs should store tenant metadata and rebuild context explicitly.
+- Tenant and host state use a private, package-specific typed context key, not a string or exported key. Code outside `core/context` cannot construct the same key, so values added by OpenTelemetry, logging, and other libraries through standard `context.WithValue` calls do not collide with or overwrite the SaaS state.
+- Use `WithTenant`, `WithHost`, `FromContext`, and `IsHost` rather than setting context values directly. A later `WithTenant` or `WithHost` call intentionally replaces SaaS state for its child context.
 
 ## GORM Guardrails
 

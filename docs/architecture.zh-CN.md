@@ -36,7 +36,7 @@ flowchart TB
 
     subgraph adapters["Host-selected storage and external adapters"]
         stores["Memory or host-provided database/sql stores<br/>core、生命周期模块和 biz"]
-        database["Host-managed shared application database<br/>tenant-owned rows include tenant_id"]
+        database["由宿主维护的共享应用数据库和 Schema<br/>tenant-owned rows include tenant_id"]
         redis["Host-provided optional Redis cache"]
         idp["OIDC identity provider"]
         delivery["SMTP, SES, Resend, or webhook"]
@@ -100,7 +100,7 @@ flowchart LR
 
 - HTTP 和 gRPC 集成会解析租户、加载其元数据，并要求租户处于活跃状态，之后才将控制权交给宿主应用。
 - `context.Context` 是作用域载体。后台任务必须显式建立租户上下文；全局主机操作必须使用有意为之的 `core/context.WithHost` 路径。
-- GORM、Ent 和 sqlx 适配器从该上下文派生数据边界。在共享数据库模型中，租户所有的行都带有 `tenant_id`。
+- GORM、Ent 和 sqlx 适配器从该上下文派生数据边界。在受支持的共享数据库、共享 Schema 模型中，租户所有的行都带有 `tenant_id`；本模块不实现按租户独立数据库、独立 Schema 或混合隔离。
 - 存储可以使用内存实现，也可以使用宿主提供的 SQL 连接。Redis 是可选的、由宿主提供的缓存适配器，而不是租户隔离的来源。
 - `migration.Planner` 生成租户感知的 DDL 和 seed 语句；它从不执行迁移。
 

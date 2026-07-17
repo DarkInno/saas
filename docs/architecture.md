@@ -41,7 +41,7 @@ flowchart TB
 
     subgraph adapters["Host-selected storage and external adapters"]
         stores["Memory or host-provided database/sql stores<br/>core, lifecycle modules, and biz"]
-        database["Host-managed shared application database<br/>tenant-owned rows include tenant_id"]
+        database["Host-managed shared application database and schema<br/>tenant-owned rows include tenant_id"]
         redis["Host-provided optional Redis cache"]
         idp["OIDC identity provider"]
         delivery["SMTP, SES, Resend, or webhook"]
@@ -109,7 +109,9 @@ flowchart LR
   tenant context explicitly; host-wide work must use the deliberate
   `core/context.WithHost` path.
 - The GORM, Ent, and sqlx adapters derive their data boundary from that context.
-  In the shared-database model, tenant-owned rows carry `tenant_id`.
+  In the supported shared-database, shared-schema model, tenant-owned rows carry
+  `tenant_id`; this module does not implement database-per-tenant,
+  schema-per-tenant, or hybrid isolation.
 - Stores can be in-memory or use a host-provided SQL connection. Redis is an
   optional host-provided cache adapter, not the source of tenant isolation.
 - `migration.Planner` generates tenant-aware DDL and seed statements; it never

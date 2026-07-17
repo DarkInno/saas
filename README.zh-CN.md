@@ -6,19 +6,19 @@
 [![CI](https://github.com/DarkInno/saas/actions/workflows/ci.yml/badge.svg)](https://github.com/DarkInno/saas/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-SaaS 是一个面向生产环境、与 ORM 无关的 Go 多租户应用工具包，适用于构建共享数据库隔离的 SaaS 产品。它以强制 `tenant_id` 隔离边界为核心，并提供运营租户所需的 SaaS 生命周期能力。
+SaaS 是一个面向生产环境、与 ORM 无关的 Go 多租户应用工具包，适用于构建共享数据库、共享 Schema 隔离的 SaaS 产品。它以强制 `tenant_id` 隔离边界为核心，并提供运营租户所需的 SaaS 生命周期能力。
 
 它提供租户上下文与解析、数据防护、Web/RPC 中间件、租户元数据存储、套餐、订阅、配额、功能开关、入驻流程、身份关联、RBAC、审计和通知。每一行租户数据都带有 `tenant_id`，适配器从 `context.Context` 派生当前活跃租户。
 
 ## 范围
 
-- 使用必需 `tenant_id` 边界的共享数据库隔离。
+- **仅支持**共享数据库、共享 Schema 隔离：租户数据使用同一组表，并且必须具有 `tenant_id` 边界。
 - 只能通过显式主机上下文进行全局主机访问。
 - 用于租户感知数据访问的 GORM、Ent 和 sqlx 适配器。
 - HTTP、Gin、Echo、Fiber、Kratos 和 gRPC 中间件。
 - 租户生命周期、套餐、订阅、配额、功能、认证后身份关联、RBAC、审计、用户和通知。
 
-尚未实现独立数据库和混合隔离模型。
+SaaS 不实现按租户独立数据库、独立 Schema 或混合隔离；它不会创建租户数据库或 Schema、路由租户连接，或在运行时切换 Schema。需要这些模型的应用必须自行提供该层能力，或采用其他隔离方案。
 未来可选的扩展能力可位于单独模块中，但核心接入适配器随主模块提供。
 
 ## 架构

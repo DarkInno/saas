@@ -6,19 +6,19 @@
 [![CI](https://github.com/DarkInno/saas/actions/workflows/ci.yml/badge.svg)](https://github.com/DarkInno/saas/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-SaaS is a production-oriented, ORM-independent Go toolkit for shared-database multi-tenant products. It makes the required `tenant_id` isolation boundary explicit and pairs it with the SaaS lifecycle components needed to operate tenants.
+SaaS is a production-oriented, ORM-independent Go toolkit for shared-database, shared-schema multi-tenant products. It makes the required `tenant_id` isolation boundary explicit and pairs it with the SaaS lifecycle components needed to operate tenants.
 
 It provides tenant context and resolution, data guards, web/RPC middleware, tenant metadata storage, plans, subscriptions, quotas, feature flags, onboarding, identity links, RBAC, audit, and notifications. Every tenant-owned row carries `tenant_id`, and adapters derive the active tenant from `context.Context`.
 
 ## Scope
 
-- Shared-database isolation with a required `tenant_id` boundary.
+- **Only** shared-database, shared-schema isolation: tenant-owned rows use the same tables and require a `tenant_id` boundary.
 - Host-wide access only through explicit host context.
 - GORM, Ent, and sqlx adapters for tenant-aware data access.
 - HTTP, Gin, Echo, Fiber, Kratos, and gRPC middleware.
 - Tenant lifecycle, plans, subscriptions, quotas, features, post-auth identity links, RBAC, audit, users, and notifications.
 
-Independent database and hybrid isolation models are not implemented.
+SaaS does not implement database-per-tenant, schema-per-tenant, or hybrid isolation. It does not provision tenant databases or schemas, route tenant connections, or switch schemas at runtime. Applications that need those models must provide that layer separately or use a different isolation solution.
 Future optional extension capabilities can live in separate modules, but the core adoption adapters ship with the main module.
 
 ## Architecture
