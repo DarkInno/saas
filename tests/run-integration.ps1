@@ -7,7 +7,8 @@ $managedEnvironmentVariables = @(
     'GOTENANCY_MYSQL_DSN',
     'GOTENANCY_POSTGRES_DSN',
     'GOTENANCY_REDIS_ADDR',
-    'GOTENANCY_REDIS_DB'
+    'GOTENANCY_REDIS_DB',
+    'GOTENANCY_REDIS_PASSWORD'
 )
 $previousEnvironment = @{}
 foreach ($name in $managedEnvironmentVariables) {
@@ -29,6 +30,7 @@ try {
     $env:GOTENANCY_POSTGRES_DSN = 'postgres://gotenancy:gotenancy@127.0.0.1:55432/gotenancy_test?sslmode=disable'
     $env:GOTENANCY_REDIS_ADDR = '127.0.0.1:56379'
     $env:GOTENANCY_REDIS_DB = '15'
+    Remove-Item -Path Env:GOTENANCY_REDIS_PASSWORD -ErrorAction SilentlyContinue
 
     Invoke-Checked go @('test', './data/gorm', '-run', '^TestMySQLIntegrationEnforcesTenantIsolation$', '-count=1')
     Push-Location (Join-Path $repoRoot 'tests/db')
