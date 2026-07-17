@@ -3,6 +3,6 @@ package rpc
 import "errors"
 
 var (
-	ErrNoTenantMetadata = errors.New("gotenancy/rpc: no tenant metadata")
-	ErrInvalidCarrier   = errors.New("gotenancy/rpc: invalid carrier")
+	ErrNoTenantMetadata = errors.New("saas/rpc: no tenant metadata")
+	ErrInvalidCarrier   = errors.New("saas/rpc: invalid carrier")
 )

@@ -2,7 +2,14 @@
 
 [EN](CHANGELOG.md) | [中文](CHANGELOG.zh-CN.md)
 
-本文件记录 GoTenancy 的所有重要变更。
+本文件记录 SaaS 的所有重要变更。
+
+## v0.2.0 - 2026-07-17
+
+- 将 GoTenancy 更名为 SaaS，并将公开 Go 模块路径迁移到 `github.com/DarkInno/saas`。
+- 将生命周期模块从 `saas/*` 提升为顶级 `tenant`、`plan`、`subscription`、`quota`、`feature` 和 `onboarding` 包。
+- 将框架适配器包标识、Webhook 默认请求头、集成/混沌测试环境变量、默认出站 User-Agent、OpenTelemetry instrumentation scope 以及 CI 覆盖率构件改为 SaaS 命名。
+- 保持 Go `1.24.0` 最低版本和缓存键协议不变。完整升级映射请参阅 [v0.2 迁移指南](docs/migration-v0.2.zh-CN.md)。
 
 ## v0.1.7 - 2026-07-09
 

@@ -2,7 +2,7 @@
 
 [EN](architecture.md) | [中文](architecture.zh-CN.md)
 
-GoTenancy is a library assembled into a host Go application; it does not run an
+SaaS is a library assembled into a host Go application; it does not run an
 HTTP/gRPC service or own a deployment on its own. This diagram shows the
 integration boundaries implemented by the module and the normal tenant-scoped
 request path. The storage and external-system nodes are selected and configured
@@ -18,7 +18,7 @@ flowchart TB
         grpc["gRPC integration<br/>rpc/grpc interceptors"]
         direct["Direct invocation<br/>workers, CLI, application services"]
         app["Handlers and application services<br/>propagate context.Context"]
-        modules["SaaS and business modules<br/>saas/* and biz/*"]
+        modules["SaaS and business modules<br/>tenant, plan, subscription, quota, feature, onboarding, and biz/*"]
         telemetry["Observability helpers<br/>obs; host configures exporters"]
     end
 
@@ -40,7 +40,7 @@ flowchart TB
     end
 
     subgraph adapters["Host-selected storage and external adapters"]
-        stores["Memory or host-provided database/sql stores<br/>core, saas, and biz"]
+        stores["Memory or host-provided database/sql stores<br/>core, lifecycle modules, and biz"]
         database["Host-managed shared application database<br/>tenant-owned rows include tenant_id"]
         redis["Host-provided optional Redis cache"]
         idp["OIDC identity provider"]

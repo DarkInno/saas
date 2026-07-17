@@ -1,4 +1,4 @@
-// Package echogotenancy adapts GoTenancy tenant middleware to Echo.
+// Package echosaas adapts SaaS tenant middleware to Echo.
 //
-// 包 echogotenancy 将 GoTenancy 租户中间件适配到 Echo。
-package echogotenancy
+// 包 echosaas 将 SaaS 租户中间件适配到 Echo。
+package echosaas

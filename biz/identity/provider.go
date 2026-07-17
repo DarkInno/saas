@@ -22,7 +22,7 @@ const (
 )
 
 // Provider describes an external identity provider that has already verified
-// the login assertion before GoTenancy receives it.
+// the login assertion before SaaS receives it.
 type Provider struct {
 	Key              ProviderKey
 	Kind             ProviderKind

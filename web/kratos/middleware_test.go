@@ -1,14 +1,14 @@
-package kratosgotenancy
+package kratossaas
 
 import (
 	"context"
 	"net/http"
 	"testing"
 
-	tenantctx "github.com/DarkInno/gotenancy/core/context"
-	"github.com/DarkInno/gotenancy/core/resolver"
-	"github.com/DarkInno/gotenancy/core/store"
-	"github.com/DarkInno/gotenancy/core/types"
+	tenantctx "github.com/DarkInno/saas/core/context"
+	"github.com/DarkInno/saas/core/resolver"
+	"github.com/DarkInno/saas/core/store"
+	"github.com/DarkInno/saas/core/types"
 
 	kerrors "github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/middleware"

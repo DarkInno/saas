@@ -3,12 +3,12 @@ package gormtenant
 import (
 	"context"
 
-	tenantctx "github.com/DarkInno/gotenancy/core/context"
+	tenantctx "github.com/DarkInno/saas/core/context"
 
 	"gorm.io/gorm"
 )
 
-const safeSQLKey = "gotenancy:safe_sql"
+const safeSQLKey = "saas:safe_sql"
 
 // SafeRaw executes raw SQL only with explicit host context.
 func SafeRaw(ctx context.Context, db *gorm.DB, sqlText string, values ...interface{}) *gorm.DB {

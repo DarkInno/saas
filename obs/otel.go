@@ -12,15 +12,15 @@ import (
 )
 
 const (
-	// InstrumentationName is the OpenTelemetry instrumentation scope name for GoTenancy.
-	InstrumentationName = "github.com/DarkInno/gotenancy"
+	// InstrumentationName is the OpenTelemetry instrumentation scope name for SaaS.
+	InstrumentationName = "github.com/DarkInno/saas"
 
 	defaultErrorDescription = "operation failed"
 
 	errorTypeAttribute = "error.type"
 )
 
-// NewTracer returns an OpenTelemetry tracer for GoTenancy.
+// NewTracer returns an OpenTelemetry tracer for SaaS.
 //
 // Libraries should not initialize an SDK or exporter. When provider is nil, the
 // process-global OpenTelemetry provider is used, which is no-op until the host

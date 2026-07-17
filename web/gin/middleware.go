@@ -1,14 +1,14 @@
-package gingotenancy
+package ginsaas
 
 import (
 	"context"
 	"errors"
 	"net/http"
 
-	tenantctx "github.com/DarkInno/gotenancy/core/context"
-	"github.com/DarkInno/gotenancy/core/resolver"
-	"github.com/DarkInno/gotenancy/core/store"
-	"github.com/DarkInno/gotenancy/core/types"
+	tenantctx "github.com/DarkInno/saas/core/context"
+	"github.com/DarkInno/saas/core/resolver"
+	"github.com/DarkInno/saas/core/store"
+	"github.com/DarkInno/saas/core/types"
 
 	"github.com/gin-gonic/gin"
 )

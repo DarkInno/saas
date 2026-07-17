@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/DarkInno/gotenancy/biz/user"
+	"github.com/DarkInno/saas/biz/user"
 )
 
 func TestServiceAuthenticateCreatesUserMemberAndLink(t *testing.T) {

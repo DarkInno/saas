@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DarkInno/gotenancy/core/types"
+	"github.com/DarkInno/saas/core/types"
 )
 
 func TestWithTenantAndFromContext(t *testing.T) {

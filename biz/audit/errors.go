@@ -3,13 +3,13 @@ package audit
 import "errors"
 
 var (
-	ErrInvalidEvent = errors.New("gotenancy/audit: invalid event")
+	ErrInvalidEvent = errors.New("saas/audit: invalid event")
 
-	ErrInvalidListFilter = errors.New("gotenancy/audit: invalid list filter")
+	ErrInvalidListFilter = errors.New("saas/audit: invalid list filter")
 
-	ErrNilDB = errors.New("gotenancy/audit: nil db")
+	ErrNilDB = errors.New("saas/audit: nil db")
 
-	ErrInvalidTableName = errors.New("gotenancy/audit: invalid table name")
+	ErrInvalidTableName = errors.New("saas/audit: invalid table name")
 
-	ErrUnsupportedSQLDialect = errors.New("gotenancy/audit: unsupported sql dialect")
+	ErrUnsupportedSQLDialect = errors.New("saas/audit: unsupported sql dialect")
 )

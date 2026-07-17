@@ -26,12 +26,12 @@
 
 | 包 | 用途 |
 |---|---|
-| `saas/tenant` | 租户生命周期管理器，支持创建、激活、暂停、恢复、软删除和仅限主机的硬删除。 |
-| `saas/plan` | 套餐、功能和配额元数据，提供 Store、内存实现、列表过滤器和 `database/sql` SQLStore。 |
-| `saas/subscription` | 订阅生命周期，提供活跃/已取消/已过期状态、续订、宽限期过期扫描、计费 hook、Store、内存实现和 `database/sql` SQLStore。 |
-| `saas/quota` | 配额检查、原子消耗、重置、内存实现、nil-store 防护和 `database/sql` SQLStore。 |
-| `saas/feature` | 套餐默认功能和租户覆盖解析，提供内存实现和 `database/sql` SQLStore。 |
-| `saas/onboarding` | 跨模块的租户开通流程：创建租户、校验套餐、创建订阅、初始化功能和配额、记录审计元数据、发送可选欢迎通知并激活租户。 |
+| `tenant` | 租户生命周期管理器，支持创建、激活、暂停、恢复、软删除和仅限主机的硬删除。 |
+| `plan` | 套餐、功能和配额元数据，提供 Store、内存实现、列表过滤器和 `database/sql` SQLStore。 |
+| `subscription` | 订阅生命周期，提供活跃/已取消/已过期状态、续订、宽限期过期扫描、计费 hook、Store、内存实现和 `database/sql` SQLStore。 |
+| `quota` | 配额检查、原子消耗、重置、内存实现、nil-store 防护和 `database/sql` SQLStore。 |
+| `feature` | 套餐默认功能和租户覆盖解析，提供内存实现和 `database/sql` SQLStore。 |
+| `onboarding` | 跨模块的租户开通流程：创建租户、校验套餐、创建订阅、初始化功能和配额、记录审计元数据、发送可选欢迎通知并激活租户。 |
 
 ## 集成
 

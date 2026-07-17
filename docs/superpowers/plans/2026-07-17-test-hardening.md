@@ -1,4 +1,4 @@
-# GoTenancy Test Hardening Implementation Plan
+# SaaS Test Hardening Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (\`- [ ]\`) syntax for tracking.
 
@@ -29,7 +29,7 @@
 - Test: existing tests/db/sql_store_integration_test.go, data/gorm/plugin_integration_test.go, cache/redis_integration_test.go
 
 **Interfaces:**
-- Consumes: GOTENANCY_MYSQL_DSN, GOTENANCY_POSTGRES_DSN, GOTENANCY_REDIS_ADDR, GOTENANCY_REDIS_DB.
+- Consumes: SAAS_MYSQL_DSN, SAAS_POSTGRES_DSN, SAAS_REDIS_ADDR, SAAS_REDIS_DB.
 - Produces: one local/CI command that starts the three services, runs the existing tests without Skip, and always destroys the project volumes.
 
 - [ ] **Step 1: Add the failing configuration check**
@@ -45,17 +45,17 @@ Expected: FAIL because tests/compose.yaml does not exist.
 - [ ] **Step 2: Create tests/compose.yaml**
 
 ~~~yaml
-name: gotenancy-tests
+name: saas-tests
 
 services:
   mysql:
     image: mysql:8.4
     environment:
-      MYSQL_DATABASE: gotenancy_test
-      MYSQL_ROOT_PASSWORD: gotenancy
+      MYSQL_DATABASE: saas_test
+      MYSQL_ROOT_PASSWORD: saas
     ports: ["127.0.0.1:33067:3306"]
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -pgotenancy --silent"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -psaas --silent"]
       interval: 2s
       timeout: 5s
       retries: 30
@@ -64,12 +64,12 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_DB: gotenancy_test
-      POSTGRES_USER: gotenancy
-      POSTGRES_PASSWORD: gotenancy
+      POSTGRES_DB: saas_test
+      POSTGRES_USER: saas
+      POSTGRES_PASSWORD: saas
     ports: ["127.0.0.1:55432:5432"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gotenancy -d gotenancy_test"]
+      test: ["CMD-SHELL", "pg_isready -U saas -d saas_test"]
       interval: 2s
       timeout: 5s
       retries: 30
@@ -121,10 +121,10 @@ function Invoke-Checked {
 Push-Location $repoRoot
 try {
     Invoke-Checked docker @('compose', '-f', $composeFile, 'up', '-d', '--wait')
-    $env:GOTENANCY_MYSQL_DSN = 'root:gotenancy@tcp(127.0.0.1:33067)/gotenancy_test?parseTime=true&timeout=3s&readTimeout=3s&writeTimeout=3s'
-    $env:GOTENANCY_POSTGRES_DSN = 'postgres://gotenancy:gotenancy@127.0.0.1:55432/gotenancy_test?sslmode=disable'
-    $env:GOTENANCY_REDIS_ADDR = '127.0.0.1:56379'
-    $env:GOTENANCY_REDIS_DB = '15'
+    $env:SAAS_MYSQL_DSN = 'root:saas@tcp(127.0.0.1:33067)/saas_test?parseTime=true&timeout=3s&readTimeout=3s&writeTimeout=3s'
+    $env:SAAS_POSTGRES_DSN = 'postgres://saas:saas@127.0.0.1:55432/saas_test?sslmode=disable'
+    $env:SAAS_REDIS_ADDR = '127.0.0.1:56379'
+    $env:SAAS_REDIS_DB = '15'
 
     Invoke-Checked go @('test', './data/gorm', '-run', '^TestMySQLIntegrationEnforcesTenantIsolation$', '-count=1')
     Push-Location (Join-Path $repoRoot 'tests/db')
@@ -138,7 +138,7 @@ try {
     & docker compose -f $composeFile logs --no-color
     throw
 } finally {
-    Remove-Item Env:GOTENANCY_MYSQL_DSN, Env:GOTENANCY_POSTGRES_DSN, Env:GOTENANCY_REDIS_ADDR, Env:GOTENANCY_REDIS_DB -ErrorAction SilentlyContinue
+    Remove-Item Env:SAAS_MYSQL_DSN, Env:SAAS_POSTGRES_DSN, Env:SAAS_REDIS_ADDR, Env:SAAS_REDIS_DB -ErrorAction SilentlyContinue
     if (-not $KeepServices) {
         & docker compose -f $composeFile down --volumes --remove-orphans
     }
@@ -200,7 +200,7 @@ git commit -m "ci: add disposable integration test job"
 - [ ] **Step 1: Write the failing command first**
 
 ~~~powershell
-$profile = Join-Path $env:TEMP 'gotenancy-coverage.out'
+$profile = Join-Path $env:TEMP 'saas-coverage.out'
 go test -count=1 -covermode=atomic -coverpkg=./... -coverprofile=$profile ./...
 pwsh -File tests/check-coverage.ps1 -Profile $profile -Minimum 101
 ~~~
@@ -252,12 +252,12 @@ if ($coverage -lt $Minimum) {
 - [ ] **Step 3: Verify red and green threshold paths**
 
 ~~~powershell
-pwsh -File tests/check-coverage.ps1 -Profile $profile -Minimum 65
+pwsh -File tests/check-coverage.ps1 -Profile $profile -Minimum 85
 pwsh -File tests/check-coverage.ps1 -Profile $profile -Minimum 101
 Remove-Item $profile, "$profile.txt" -ErrorAction SilentlyContinue
 ~~~
 
-Expected: the 65 invocation exits 0; the 101 invocation exits nonzero and reports the parsed percentage.
+Expected: the 85 invocation exits 0; the 101 invocation exits nonzero and reports the parsed percentage.
 
 - [ ] **Step 4: Add the CI coverage job**
 
@@ -266,7 +266,7 @@ Expected: the 65 invocation exits 0; the 101 invocation exits nonzero and report
     name: coverage
     runs-on: ubuntu-latest
     env:
-      COVERAGE_PROFILE: ${{ runner.temp }}/gotenancy-coverage.out
+      COVERAGE_PROFILE: ${{ runner.temp }}/saas-coverage.out
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -280,14 +280,14 @@ Expected: the 65 invocation exits 0; the 101 invocation exits nonzero and report
         run: go test -count=1 -covermode=atomic -coverpkg=./... -coverprofile=$env:COVERAGE_PROFILE ./...
       - name: Enforce coverage floor
         shell: pwsh
-        run: ./tests/check-coverage.ps1 -Profile $env:COVERAGE_PROFILE -Minimum 65
+        run: ./tests/check-coverage.ps1 -Profile $env:COVERAGE_PROFILE -Minimum 85
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: gotenancy-coverage
+          name: saas-coverage
           path: |
-            ${{ runner.temp }}/gotenancy-coverage.out
-            ${{ runner.temp }}/gotenancy-coverage.out.txt
+            ${{ runner.temp }}/saas-coverage.out
+            ${{ runner.temp }}/saas-coverage.out.txt
           if-no-files-found: error
 ~~~
 
@@ -342,7 +342,7 @@ In errors.go add:
 
 ~~~go
 // ErrNilURL reports a request whose URL is unavailable to a query resolver.
-ErrNilURL = errors.New("gotenancy/resolver: nil request url")
+ErrNilURL = errors.New("saas/resolver: nil request url")
 ~~~
 
 In QueryContrib.Resolve, immediately after the nil request guard add:
@@ -410,7 +410,7 @@ git commit -m "test: add fuzz coverage for tenant boundaries"
 - Modify: tests/compose.yaml
 
 **Interfaces:**
-- Consumes: Toxiproxy on GOTENANCY_TOXIPROXY_URL and Docker-service host names.
+- Consumes: Toxiproxy on SAAS_TOXIPROXY_URL and Docker-service host names.
 - Produces: a test-only HTTP client plus tagged Redis and SQLStore fault/recovery tests.
 
 - [ ] **Step 1: Test the HTTP contract before creating the helper**
@@ -418,7 +418,7 @@ git commit -m "test: add fuzz coverage for tenant boundaries"
 Create client_test.go with an httptest.Server. Assert that CreateProxy sends:
 
 ~~~json
-{"name":"gotenancy_redis","listen":"0.0.0.0:8668","upstream":"redis:6379","enabled":true}
+{"name":"saas_redis","listen":"0.0.0.0:8668","upstream":"redis:6379","enabled":true}
 ~~~
 
 and AddTimeout sends:
@@ -457,10 +457,10 @@ Wait polls GET /version using a ticker and respects ctx.Done. All non-2xx errors
 
 - [ ] **Step 3: Add tagged Redis chaos test**
 
-Create cache/redis_chaos_test.go with //go:build chaos. It must skip unless GOTENANCY_CHAOS is 1, then:
+Create cache/redis_chaos_test.go with //go:build chaos. It must skip unless SAAS_CHAOS is 1, then:
 1. wait for Toxiproxy;
-2. create gotenancy_redis at 0.0.0.0:8668 upstream redis:6379;
-3. connect a short-timeout Redis client through GOTENANCY_CHAOS_REDIS_ADDR;
+2. create saas_redis at 0.0.0.0:8668 upstream redis:6379;
+3. connect a short-timeout Redis client through SAAS_CHAOS_REDIS_ADDR;
 4. prove tenant A/B key isolation;
 5. add timeout toxic and assert a context-bounded Ping or Get error;
 6. remove toxic, wait for Ping, and prove fresh isolated reads/writes;
@@ -469,7 +469,7 @@ Create cache/redis_chaos_test.go with //go:build chaos. It must skip unless GOTE
 - [ ] **Step 4: Add tagged MySQL/PostgreSQL CAS/recovery test**
 
 Create tests/db/chaos_integration_test.go with //go:build chaos, package db_test. Reuse existing ping/reset helpers. For each configured backend:
-1. create gotenancy_mysql or gotenancy_postgres proxy;
+1. create saas_mysql or saas_postgres proxy;
 2. use a fresh sql.DB through its proxy and a matching store.WithSQLDialect;
 3. create one tenant, launch two CompareAndSwap operations against the same expected snapshot, and require exactly one nil and one store.ErrTenantConflict;
 4. verify the final tenant exactly equals one candidate update, never a hybrid;
@@ -482,11 +482,11 @@ Create tests/db/chaos_integration_test.go with //go:build chaos, package db_test
 Mirror Task 1's Invoke-Checked, catch/log/finally teardown pattern. Start Compose with --profile chaos and export:
 
 ~~~powershell
-$env:GOTENANCY_CHAOS = '1'
-$env:GOTENANCY_TOXIPROXY_URL = 'http://127.0.0.1:58474'
-$env:GOTENANCY_CHAOS_MYSQL_DSN = 'root:gotenancy@tcp(127.0.0.1:58666)/gotenancy_test?parseTime=true&timeout=1s&readTimeout=1s&writeTimeout=1s'
-$env:GOTENANCY_CHAOS_POSTGRES_DSN = 'postgres://gotenancy:gotenancy@127.0.0.1:58667/gotenancy_test?sslmode=disable&connect_timeout=1'
-$env:GOTENANCY_CHAOS_REDIS_ADDR = '127.0.0.1:58668'
+$env:SAAS_CHAOS = '1'
+$env:SAAS_TOXIPROXY_URL = 'http://127.0.0.1:58474'
+$env:SAAS_CHAOS_MYSQL_DSN = 'root:saas@tcp(127.0.0.1:58666)/saas_test?parseTime=true&timeout=1s&readTimeout=1s&writeTimeout=1s'
+$env:SAAS_CHAOS_POSTGRES_DSN = 'postgres://saas:saas@127.0.0.1:58667/saas_test?sslmode=disable&connect_timeout=1'
+$env:SAAS_CHAOS_REDIS_ADDR = '127.0.0.1:58668'
 ~~~
 
 Run:
@@ -568,7 +568,7 @@ jobs:
 In both README languages:
 - retain baseline go test, vet, and race examples;
 - add pwsh -File tests/run-integration.ps1;
-- show a temporary atomic coverage profile plus check-coverage.ps1 -Minimum 65;
+- show a temporary atomic coverage profile plus check-coverage.ps1 -Minimum 85;
 - add pwsh -File tests/run-chaos.ps1;
 - state that the scripts create/drop tables and must never target shared/production DSNs.
 

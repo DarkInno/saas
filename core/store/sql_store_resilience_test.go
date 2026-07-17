@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/DarkInno/gotenancy/core/types"
+	"github.com/DarkInno/saas/core/types"
 )
 
 func TestSQLStoreValidationAndDriverFailuresDoNotChangeTenantState(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"strings"
 
-	tenantctx "github.com/DarkInno/gotenancy/core/context"
+	tenantctx "github.com/DarkInno/saas/core/context"
 )
 
 const (

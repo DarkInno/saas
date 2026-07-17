@@ -1,4 +1,4 @@
-# GoTenancy 测试保障补全设计
+# SaaS 测试保障补全设计
 
 ## 目标
 
@@ -9,7 +9,7 @@
 - 输入边界通过原生 Go fuzz 持续检验；
 - 依赖故障通过可重复的韧性契约验证，而不是随机性很高的“杀进程测试”。
 
-本设计以库的职责边界为准：GoTenancy 接收宿主提供的数据库和 Redis 客户端，不承诺替宿主重试、持久化或恢复连接；测试验证库在依赖故障时的边界行为与租户隔离不变量。
+本设计以库的职责边界为准：SaaS 接收宿主提供的数据库和 Redis 客户端，不承诺替宿主重试、持久化或恢复连接；测试验证库在依赖故障时的边界行为与租户隔离不变量。
 
 ## 当前基线与问题
 
@@ -70,7 +70,7 @@ go test ./data/gorm -run '^TestMySQLIntegrationEnforcesTenantIsolation$' -count=
 go test ./cache -run '^TestRedisCacheIntegration$' -count=1
 ```
 
-job 在命令前设置 `GOTENANCY_MYSQL_DSN`、`GOTENANCY_POSTGRES_DSN`、`GOTENANCY_REDIS_ADDR` 和专用 Redis DB。测试会删建 `tenants` 或 `tenant_orders`，因此文档和脚本必须明确：这些变量只能指向 Compose 创建的可销毁测试实例，绝不能指向共享或生产服务。
+job 在命令前设置 `SAAS_MYSQL_DSN`、`SAAS_POSTGRES_DSN`、`SAAS_REDIS_ADDR` 和专用 Redis DB。测试会删建 `tenants` 或 `tenant_orders`，因此文档和脚本必须明确：这些变量只能指向 Compose 创建的可销毁测试实例，绝不能指向共享或生产服务。
 
 ### 3. 原生 Go fuzz 层
 

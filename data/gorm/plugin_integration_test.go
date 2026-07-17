@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	tenantctx "github.com/DarkInno/gotenancy/core/context"
-	"github.com/DarkInno/gotenancy/core/types"
-	"github.com/DarkInno/gotenancy/data"
+	tenantctx "github.com/DarkInno/saas/core/context"
+	"github.com/DarkInno/saas/core/types"
+	"github.com/DarkInno/saas/data"
 
 	_ "github.com/go-sql-driver/mysql"
 	"gorm.io/driver/mysql"
@@ -18,9 +18,9 @@ import (
 )
 
 func TestMySQLIntegrationEnforcesTenantIsolation(t *testing.T) {
-	dsn := os.Getenv("GOTENANCY_MYSQL_DSN")
+	dsn := os.Getenv("SAAS_MYSQL_DSN")
 	if dsn == "" {
-		t.Skip("set GOTENANCY_MYSQL_DSN to run MySQL integration test")
+		t.Skip("set SAAS_MYSQL_DSN to run MySQL integration test")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

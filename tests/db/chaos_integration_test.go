@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DarkInno/gotenancy/core/store"
-	"github.com/DarkInno/gotenancy/core/types"
-	"github.com/DarkInno/gotenancy/internal/testcontract"
-	"github.com/DarkInno/gotenancy/internal/testtoxiproxy"
+	"github.com/DarkInno/saas/core/store"
+	"github.com/DarkInno/saas/core/types"
+	"github.com/DarkInno/saas/internal/testcontract"
+	"github.com/DarkInno/saas/internal/testtoxiproxy"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
@@ -23,8 +23,8 @@ import (
 
 const (
 	chaosToxiproxyURL = "http://127.0.0.1:58474"
-	chaosMySQLDSN     = "root:gotenancy@tcp(127.0.0.1:58666)/gotenancy_test?parseTime=true&timeout=1s&readTimeout=1s&writeTimeout=1s"
-	chaosPostgresDSN  = "postgres://gotenancy:gotenancy@127.0.0.1:58667/gotenancy_test?sslmode=disable&connect_timeout=1"
+	chaosMySQLDSN     = "root:saas@tcp(127.0.0.1:58666)/saas_test?parseTime=true&timeout=1s&readTimeout=1s&writeTimeout=1s"
+	chaosPostgresDSN  = "postgres://saas:saas@127.0.0.1:58667/saas_test?sslmode=disable&connect_timeout=1"
 )
 
 type sqlChaosBackend struct {
@@ -46,14 +46,14 @@ func TestSQLChaosEnvironmentValidation(t *testing.T) {
 		expected string
 		wantErr  bool
 	}{
-		{name: "expected loopback DSN", value: "postgres://gotenancy:gotenancy@127.0.0.1:58667/gotenancy_test?sslmode=disable&connect_timeout=1", expected: "postgres://gotenancy:gotenancy@127.0.0.1:58667/gotenancy_test?sslmode=disable&connect_timeout=1"},
-		{name: "missing", value: "", expected: "root:gotenancy@tcp(127.0.0.1:58666)/gotenancy_test?parseTime=true&timeout=1s&readTimeout=1s&writeTimeout=1s", wantErr: true},
-		{name: "external host", value: "root:gotenancy@tcp(db.example.com:3306)/gotenancy_test", expected: "root:gotenancy@tcp(127.0.0.1:58666)/gotenancy_test?parseTime=true&timeout=1s&readTimeout=1s&writeTimeout=1s", wantErr: true},
+		{name: "expected loopback DSN", value: "postgres://saas:saas@127.0.0.1:58667/saas_test?sslmode=disable&connect_timeout=1", expected: "postgres://saas:saas@127.0.0.1:58667/saas_test?sslmode=disable&connect_timeout=1"},
+		{name: "missing", value: "", expected: "root:saas@tcp(127.0.0.1:58666)/saas_test?parseTime=true&timeout=1s&readTimeout=1s&writeTimeout=1s", wantErr: true},
+		{name: "external host", value: "root:saas@tcp(db.example.com:3306)/saas_test", expected: "root:saas@tcp(127.0.0.1:58666)/saas_test?parseTime=true&timeout=1s&readTimeout=1s&writeTimeout=1s", wantErr: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateSQLChaosValue("GOTENANCY_CHAOS_DSN", tt.value, tt.expected)
+			err := validateSQLChaosValue("SAAS_CHAOS_DSN", tt.value, tt.expected)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("validateSQLChaosValue(%q) error = %v, wantErr %v", tt.value, err, tt.wantErr)
 			}
@@ -62,11 +62,11 @@ func TestSQLChaosEnvironmentValidation(t *testing.T) {
 }
 
 func TestSQLStoreChaos(t *testing.T) {
-	if os.Getenv("GOTENANCY_CHAOS") != "1" {
-		t.Skip("set GOTENANCY_CHAOS=1 to run SQLStore chaos tests")
+	if os.Getenv("SAAS_CHAOS") != "1" {
+		t.Skip("set SAAS_CHAOS=1 to run SQLStore chaos tests")
 	}
 
-	toxiproxyURL := requireSQLChaosEnvironment(t, "GOTENANCY_TOXIPROXY_URL", chaosToxiproxyURL)
+	toxiproxyURL := requireSQLChaosEnvironment(t, "SAAS_TOXIPROXY_URL", chaosToxiproxyURL)
 	waitCtx, waitCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer waitCancel()
 	toxiproxy := testtoxiproxy.New(toxiproxyURL)
@@ -78,9 +78,9 @@ func TestSQLStoreChaos(t *testing.T) {
 		{
 			name:        "mysql",
 			driver:      "mysql",
-			dsnEnv:      "GOTENANCY_CHAOS_MYSQL_DSN",
+			dsnEnv:      "SAAS_CHAOS_MYSQL_DSN",
 			expectedDSN: chaosMySQLDSN,
-			proxy:       "gotenancy_mysql",
+			proxy:       "saas_mysql",
 			listen:      "0.0.0.0:8666",
 			upstream:    "mysql:3306",
 			dialect:     store.SQLDialectMySQL,
@@ -89,9 +89,9 @@ func TestSQLStoreChaos(t *testing.T) {
 		{
 			name:        "postgres",
 			driver:      "postgres",
-			dsnEnv:      "GOTENANCY_CHAOS_POSTGRES_DSN",
+			dsnEnv:      "SAAS_CHAOS_POSTGRES_DSN",
 			expectedDSN: chaosPostgresDSN,
-			proxy:       "gotenancy_postgres",
+			proxy:       "saas_postgres",
 			listen:      "0.0.0.0:8667",
 			upstream:    "postgres:5432",
 			dialect:     store.SQLDialectPostgres,
@@ -226,7 +226,7 @@ func requireSQLChaosEnvironment(t *testing.T, name, expected string) string {
 
 func validateSQLChaosValue(name, value, expected string) error {
 	if value == "" {
-		return fmt.Errorf("%s must be set when GOTENANCY_CHAOS=1", name)
+		return fmt.Errorf("%s must be set when SAAS_CHAOS=1", name)
 	}
 	if value != expected {
 		return fmt.Errorf("%s must target the local disposable Compose address", name)

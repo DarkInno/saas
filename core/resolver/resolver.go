@@ -3,7 +3,7 @@ package resolver
 import (
 	"net/http"
 
-	"github.com/DarkInno/gotenancy/core/types"
+	"github.com/DarkInno/saas/core/types"
 )
 
 // Resolver resolves a tenant identifier from an HTTP request.

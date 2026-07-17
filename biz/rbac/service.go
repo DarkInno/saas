@@ -3,7 +3,7 @@ package rbac
 import (
 	"context"
 
-	"github.com/DarkInno/gotenancy/core/types"
+	"github.com/DarkInno/saas/core/types"
 )
 
 type Service interface {

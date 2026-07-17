@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DarkInno/gotenancy/core/types"
+	"github.com/DarkInno/saas/core/types"
 	"golang.org/x/oauth2"
 )
 

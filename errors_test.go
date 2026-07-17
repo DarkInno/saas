@@ -1,4 +1,4 @@
-package gotenancy
+package saas
 
 import (
 	"errors"

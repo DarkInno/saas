@@ -3,18 +3,18 @@ package user
 import "errors"
 
 var (
-	ErrInvalidUser    = errors.New("gotenancy/user: invalid user")
-	ErrUserNotFound   = errors.New("gotenancy/user: user not found")
-	ErrUserExists     = errors.New("gotenancy/user: user already exists")
-	ErrMemberNotFound = errors.New("gotenancy/user: member not found")
-	ErrMemberExists   = errors.New("gotenancy/user: member already exists")
-	ErrTenantMismatch = errors.New("gotenancy/user: tenant mismatch")
+	ErrInvalidUser    = errors.New("saas/user: invalid user")
+	ErrUserNotFound   = errors.New("saas/user: user not found")
+	ErrUserExists     = errors.New("saas/user: user already exists")
+	ErrMemberNotFound = errors.New("saas/user: member not found")
+	ErrMemberExists   = errors.New("saas/user: member already exists")
+	ErrTenantMismatch = errors.New("saas/user: tenant mismatch")
 
-	ErrInvalidListFilter = errors.New("gotenancy/user: invalid list filter")
+	ErrInvalidListFilter = errors.New("saas/user: invalid list filter")
 
-	ErrNilDB = errors.New("gotenancy/user: nil db")
+	ErrNilDB = errors.New("saas/user: nil db")
 
-	ErrInvalidTableName = errors.New("gotenancy/user: invalid table name")
+	ErrInvalidTableName = errors.New("saas/user: invalid table name")
 
-	ErrUnsupportedSQLDialect = errors.New("gotenancy/user: unsupported sql dialect")
+	ErrUnsupportedSQLDialect = errors.New("saas/user: unsupported sql dialect")
 )

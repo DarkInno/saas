@@ -3,7 +3,7 @@ package store
 import (
 	"context"
 
-	"github.com/DarkInno/gotenancy/core/types"
+	"github.com/DarkInno/saas/core/types"
 )
 
 // Store persists tenant metadata.

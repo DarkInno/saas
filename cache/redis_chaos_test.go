@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	tenantctx "github.com/DarkInno/gotenancy/core/context"
-	"github.com/DarkInno/gotenancy/core/types"
-	"github.com/DarkInno/gotenancy/internal/testtoxiproxy"
+	tenantctx "github.com/DarkInno/saas/core/context"
+	"github.com/DarkInno/saas/core/types"
+	"github.com/DarkInno/saas/internal/testtoxiproxy"
 	redis "github.com/redis/go-redis/v9"
 )
 
@@ -29,10 +29,10 @@ func TestRedisChaosEnvironmentValidation(t *testing.T) {
 		expected string
 		wantErr  bool
 	}{
-		{name: "expected toxiproxy URL", variable: "GOTENANCY_TOXIPROXY_URL", value: chaosToxiproxyURL, expected: chaosToxiproxyURL},
-		{name: "expected redis address", variable: "GOTENANCY_CHAOS_REDIS_ADDR", value: chaosRedisAddress, expected: chaosRedisAddress},
-		{name: "missing toxiproxy URL", variable: "GOTENANCY_TOXIPROXY_URL", expected: chaosToxiproxyURL, wantErr: true},
-		{name: "external redis address", variable: "GOTENANCY_CHAOS_REDIS_ADDR", value: "redis.example.com:6379", expected: chaosRedisAddress, wantErr: true},
+		{name: "expected toxiproxy URL", variable: "SAAS_TOXIPROXY_URL", value: chaosToxiproxyURL, expected: chaosToxiproxyURL},
+		{name: "expected redis address", variable: "SAAS_CHAOS_REDIS_ADDR", value: chaosRedisAddress, expected: chaosRedisAddress},
+		{name: "missing toxiproxy URL", variable: "SAAS_TOXIPROXY_URL", expected: chaosToxiproxyURL, wantErr: true},
+		{name: "external redis address", variable: "SAAS_CHAOS_REDIS_ADDR", value: "redis.example.com:6379", expected: chaosRedisAddress, wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -46,12 +46,12 @@ func TestRedisChaosEnvironmentValidation(t *testing.T) {
 }
 
 func TestRedisChaos(t *testing.T) {
-	if os.Getenv("GOTENANCY_CHAOS") != "1" {
-		t.Skip("set GOTENANCY_CHAOS=1 to run Redis chaos test")
+	if os.Getenv("SAAS_CHAOS") != "1" {
+		t.Skip("set SAAS_CHAOS=1 to run Redis chaos test")
 	}
 
-	toxiproxyURL := requireChaosEnvironment(t, "GOTENANCY_TOXIPROXY_URL", chaosToxiproxyURL)
-	redisAddress := requireChaosEnvironment(t, "GOTENANCY_CHAOS_REDIS_ADDR", chaosRedisAddress)
+	toxiproxyURL := requireChaosEnvironment(t, "SAAS_TOXIPROXY_URL", chaosToxiproxyURL)
+	redisAddress := requireChaosEnvironment(t, "SAAS_CHAOS_REDIS_ADDR", chaosRedisAddress)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
@@ -60,7 +60,7 @@ func TestRedisChaos(t *testing.T) {
 		t.Fatalf("wait for Toxiproxy: %v", err)
 	}
 
-	const proxyName = "gotenancy_redis"
+	const proxyName = "saas_redis"
 	if _, err := toxiproxy.CreateProxy(ctx, proxyName, "0.0.0.0:8668", "redis:6379"); err != nil {
 		t.Fatalf("CreateProxy() error = %v", err)
 	}
@@ -159,7 +159,7 @@ func requireChaosEnvironment(t *testing.T, name, expected string) string {
 
 func validateRedisChaosValue(name, value, expected string) error {
 	if value == "" {
-		return fmt.Errorf("%s must be set when GOTENANCY_CHAOS=1", name)
+		return fmt.Errorf("%s must be set when SAAS_CHAOS=1", name)
 	}
 	if value != expected {
 		return fmt.Errorf("%s must target the local disposable Compose address", name)

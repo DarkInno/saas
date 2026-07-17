@@ -3,7 +3,7 @@ package identity
 import (
 	"maps"
 
-	"github.com/DarkInno/gotenancy/core/types"
+	"github.com/DarkInno/saas/core/types"
 )
 
 // Assertion is a verified external identity claim. Applications must validate

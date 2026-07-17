@@ -7,23 +7,23 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $composeFile = Join-Path $PSScriptRoot 'compose.yaml'
 $managedEnvironmentVariables = @(
-    'GOTENANCY_MYSQL_DSN',
-    'GOTENANCY_POSTGRES_DSN',
-    'GOTENANCY_REDIS_ADDR',
-    'GOTENANCY_REDIS_DB',
-    'GOTENANCY_REDIS_PASSWORD'
+    'SAAS_MYSQL_DSN',
+    'SAAS_POSTGRES_DSN',
+    'SAAS_REDIS_ADDR',
+    'SAAS_REDIS_DB',
+    'SAAS_REDIS_PASSWORD'
 )
 $databaseCoveragePackages = @(
-    'github.com/DarkInno/gotenancy/biz/audit',
-    'github.com/DarkInno/gotenancy/biz/identity',
-    'github.com/DarkInno/gotenancy/biz/identity/oidc',
-    'github.com/DarkInno/gotenancy/biz/rbac',
-    'github.com/DarkInno/gotenancy/biz/user',
-    'github.com/DarkInno/gotenancy/core/store',
-    'github.com/DarkInno/gotenancy/saas/feature',
-    'github.com/DarkInno/gotenancy/saas/plan',
-    'github.com/DarkInno/gotenancy/saas/quota',
-    'github.com/DarkInno/gotenancy/saas/subscription'
+    'github.com/DarkInno/saas/biz/audit',
+    'github.com/DarkInno/saas/biz/identity',
+    'github.com/DarkInno/saas/biz/identity/oidc',
+    'github.com/DarkInno/saas/biz/rbac',
+    'github.com/DarkInno/saas/biz/user',
+    'github.com/DarkInno/saas/core/store',
+    'github.com/DarkInno/saas/feature',
+    'github.com/DarkInno/saas/plan',
+    'github.com/DarkInno/saas/quota',
+    'github.com/DarkInno/saas/subscription'
 ) -join ','
 $previousEnvironment = @{}
 foreach ($name in $managedEnvironmentVariables) {
@@ -41,11 +41,11 @@ function Invoke-Checked {
 Push-Location $repoRoot
 try {
     Invoke-Checked docker @('compose', '-f', $composeFile, 'up', '-d', '--wait')
-    $env:GOTENANCY_MYSQL_DSN = 'root:gotenancy@tcp(127.0.0.1:33067)/gotenancy_test?parseTime=true&timeout=3s&readTimeout=3s&writeTimeout=3s'
-    $env:GOTENANCY_POSTGRES_DSN = 'postgres://gotenancy:gotenancy@127.0.0.1:55432/gotenancy_test?sslmode=disable'
-    $env:GOTENANCY_REDIS_ADDR = '127.0.0.1:56379'
-    $env:GOTENANCY_REDIS_DB = '15'
-    Remove-Item -Path Env:GOTENANCY_REDIS_PASSWORD -ErrorAction SilentlyContinue
+    $env:SAAS_MYSQL_DSN = 'root:saas@tcp(127.0.0.1:33067)/saas_test?parseTime=true&timeout=3s&readTimeout=3s&writeTimeout=3s'
+    $env:SAAS_POSTGRES_DSN = 'postgres://saas:saas@127.0.0.1:55432/saas_test?sslmode=disable'
+    $env:SAAS_REDIS_ADDR = '127.0.0.1:56379'
+    $env:SAAS_REDIS_DB = '15'
+    Remove-Item -Path Env:SAAS_REDIS_PASSWORD -ErrorAction SilentlyContinue
 
     Invoke-Checked go @('test', './data/gorm', '-run', '^TestMySQLIntegrationEnforcesTenantIsolation$', '-count=1')
     Push-Location (Join-Path $repoRoot 'tests/db')

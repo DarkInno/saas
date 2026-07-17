@@ -8,18 +8,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DarkInno/gotenancy/core/types"
-	"github.com/DarkInno/gotenancy/saas/subscription"
+	"github.com/DarkInno/saas/core/types"
+	"github.com/DarkInno/saas/subscription"
 )
 
 func TestSubscriptionSQLStoreMySQLIntegration(t *testing.T) {
-	runSubscriptionSQLStoreIntegration(t, "mysql", os.Getenv("GOTENANCY_MYSQL_DSN"), resetMySQLSubscriptionsTable, func(db *sql.DB) (*subscription.SQLStore, error) {
+	runSubscriptionSQLStoreIntegration(t, "mysql", os.Getenv("SAAS_MYSQL_DSN"), resetMySQLSubscriptionsTable, func(db *sql.DB) (*subscription.SQLStore, error) {
 		return subscription.NewSQLStore(db)
 	})
 }
 
 func TestSubscriptionSQLStorePostgresIntegration(t *testing.T) {
-	runSubscriptionSQLStoreIntegration(t, "postgres", os.Getenv("GOTENANCY_POSTGRES_DSN"), resetPostgresSubscriptionsTable, func(db *sql.DB) (*subscription.SQLStore, error) {
+	runSubscriptionSQLStoreIntegration(t, "postgres", os.Getenv("SAAS_POSTGRES_DSN"), resetPostgresSubscriptionsTable, func(db *sql.DB) (*subscription.SQLStore, error) {
 		return subscription.NewSQLStore(db, subscription.WithSQLDialect(subscription.SQLDialectPostgres))
 	})
 }

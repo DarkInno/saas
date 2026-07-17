@@ -8,17 +8,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DarkInno/gotenancy/biz/audit"
+	"github.com/DarkInno/saas/biz/audit"
 )
 
 func TestAuditSQLStoreMySQLIntegration(t *testing.T) {
-	runAuditSQLStoreIntegration(t, "mysql", os.Getenv("GOTENANCY_MYSQL_DSN"), resetMySQLAuditEventsTable, func(db *sql.DB) (*audit.SQLStore, error) {
+	runAuditSQLStoreIntegration(t, "mysql", os.Getenv("SAAS_MYSQL_DSN"), resetMySQLAuditEventsTable, func(db *sql.DB) (*audit.SQLStore, error) {
 		return audit.NewSQLStore(db)
 	})
 }
 
 func TestAuditSQLStorePostgresIntegration(t *testing.T) {
-	runAuditSQLStoreIntegration(t, "postgres", os.Getenv("GOTENANCY_POSTGRES_DSN"), resetPostgresAuditEventsTable, func(db *sql.DB) (*audit.SQLStore, error) {
+	runAuditSQLStoreIntegration(t, "postgres", os.Getenv("SAAS_POSTGRES_DSN"), resetPostgresAuditEventsTable, func(db *sql.DB) (*audit.SQLStore, error) {
 		return audit.NewSQLStore(db, audit.WithSQLDialect(audit.SQLDialectPostgres))
 	})
 }

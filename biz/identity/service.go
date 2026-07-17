@@ -7,7 +7,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/DarkInno/gotenancy/biz/user"
+	"github.com/DarkInno/saas/biz/user"
 )
 
 type Service struct {

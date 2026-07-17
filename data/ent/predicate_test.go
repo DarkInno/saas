@@ -11,10 +11,10 @@ import (
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 
-	"github.com/DarkInno/gotenancy"
-	tenantctx "github.com/DarkInno/gotenancy/core/context"
-	"github.com/DarkInno/gotenancy/core/types"
-	"github.com/DarkInno/gotenancy/data"
+	"github.com/DarkInno/saas"
+	tenantctx "github.com/DarkInno/saas/core/context"
+	"github.com/DarkInno/saas/core/types"
+	"github.com/DarkInno/saas/data"
 )
 
 func TestPredicateAddsTenantFilter(t *testing.T) {
@@ -168,8 +168,8 @@ func TestFilterMutationCreateRejectsTenantMismatch(t *testing.T) {
 	mutation.fields["tenant_id"] = "tenant-b"
 
 	err := FilterMutation(ctx, mutation, Config{})
-	if !errors.Is(err, gotenancy.ErrTenantMismatch) {
-		t.Fatalf("FilterMutation(create mismatch) error = %v, want %v", err, gotenancy.ErrTenantMismatch)
+	if !errors.Is(err, saas.ErrTenantMismatch) {
+		t.Fatalf("FilterMutation(create mismatch) error = %v, want %v", err, saas.ErrTenantMismatch)
 	}
 }
 

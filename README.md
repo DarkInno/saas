@@ -1,12 +1,12 @@
-# GoTenancy
+# SaaS
 
 [EN](README.md) | [中文](README.zh-CN.md)
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/DarkInno/gotenancy.svg)](https://pkg.go.dev/github.com/DarkInno/gotenancy)
-[![CI](https://github.com/DarkInno/gotenancy/actions/workflows/ci.yml/badge.svg)](https://github.com/DarkInno/gotenancy/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/DarkInno/saas.svg)](https://pkg.go.dev/github.com/DarkInno/saas)
+[![CI](https://github.com/DarkInno/saas/actions/workflows/ci.yml/badge.svg)](https://github.com/DarkInno/saas/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-GoTenancy is an ORM-independent Go toolkit for shared-database multi-tenancy with a required `tenant_id` boundary.
+SaaS is an ORM-independent Go toolkit for shared-database multi-tenancy with a required `tenant_id` boundary.
 
 It provides tenant context, tenant resolution, data guards, web/RPC middleware, tenant metadata storage, and common SaaS modules. The default model is simple: every tenant-owned row carries `tenant_id`, and adapters derive the active tenant from `context.Context`.
 
@@ -26,6 +26,13 @@ Future optional extension capabilities can live in separate modules, but the cor
 See [docs/architecture.md](docs/architecture.md) for the host-integration,
 tenant-boundary, data-isolation, and external-adapter diagram.
 
+## Migration from GoTenancy
+
+SaaS v0.2.0 is a breaking rename. The module path is now
+`github.com/DarkInno/saas`, and lifecycle packages are top-level paths such as
+`github.com/DarkInno/saas/tenant`. See the [v0.2 migration guide](docs/migration-v0.2.md)
+before upgrading an existing application.
+
 ## Requirements
 
 - Go `1.24+`.
@@ -34,7 +41,7 @@ tenant-boundary, data-isolation, and external-adapter diagram.
 
 ```bash
 go mod init your-app
-go get github.com/DarkInno/gotenancy
+go get github.com/DarkInno/saas
 ```
 
 ## Complete Example
@@ -49,10 +56,10 @@ import (
 	"fmt"
 	"log"
 
-	tenantctx "github.com/DarkInno/gotenancy/core/context"
-	"github.com/DarkInno/gotenancy/core/store"
-	"github.com/DarkInno/gotenancy/core/types"
-	gormtenant "github.com/DarkInno/gotenancy/data/gorm"
+	tenantctx "github.com/DarkInno/saas/core/context"
+	"github.com/DarkInno/saas/core/store"
+	"github.com/DarkInno/saas/core/types"
+	gormtenant "github.com/DarkInno/saas/data/gorm"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -139,7 +146,7 @@ Resolve tenants at the edge, then pass `context.Context` through application and
 tenantResolver := resolver.NewComposite(
 	resolver.NewHeaderContrib("", types.TenantIDStrategyString),
 )
-router.Use(gingotenancy.TenantMiddleware(tenantResolver, tenants))
+router.Use(ginsaas.TenantMiddleware(tenantResolver, tenants))
 ```
 
 Filter Ent queries before execution:
@@ -162,7 +169,7 @@ Protect gRPC handlers with tenant metadata:
 
 ```go
 server := grpc.NewServer(
-	grpc.UnaryInterceptor(grpcgotenancy.TenantUnaryServerInterceptor(tenants)),
+	grpc.UnaryInterceptor(grpcsaas.TenantUnaryServerInterceptor(tenants)),
 )
 ```
 
@@ -182,12 +189,12 @@ ctx := tenantctx.WithHost(context.Background())
 - `data/gorm`: GORM plugin, guard suite, host-only `SafeRaw`/`SafeExec`, `BulkCreate`, and delete APIs.
 - `data/ent`: Ent selector predicate, query filter, mutation filter, and hook APIs.
 - `data/sqlx`: tenant-filtered APIs for simple single-table SELECT/UPDATE/DELETE statements.
-- `saas/tenant`: tenant lifecycle state machine.
-- `saas/plan`: plan Store, memory implementation, and `database/sql` SQLStore.
-- `saas/subscription`: subscription lifecycle, renewal, expiration, grace-period handling, billing hook, Store, memory implementation, and `database/sql` SQLStore.
-- `saas/quota`: quota checking, atomic consumption, reset, memory implementation, and `database/sql` SQLStore.
-- `saas/feature`: plan defaults, tenant-level feature overrides, memory implementation, and `database/sql` SQLStore.
-- `saas/onboarding`: tenant onboarding flow across tenant, plan, subscription, feature, quota, audit, and notification services.
+- `tenant`: tenant lifecycle state machine.
+- `plan`: plan Store, memory implementation, and `database/sql` SQLStore.
+- `subscription`: subscription lifecycle, renewal, expiration, grace-period handling, billing hook, Store, memory implementation, and `database/sql` SQLStore.
+- `quota`: quota checking, atomic consumption, reset, memory implementation, and `database/sql` SQLStore.
+- `feature`: plan defaults, tenant-level feature overrides, memory implementation, and `database/sql` SQLStore.
+- `onboarding`: tenant onboarding flow across tenant, plan, subscription, feature, quota, audit, and notification services.
 - `biz/identity`: post-auth tenant user mapping for verified external identity assertions, with memory and `database/sql` stores.
 - `biz/identity/oidc`: OIDC authorization-code bridge with PKCE, state, nonce, ID-token verification, one-time login state storage, SQL-backed login state storage, and assertion output.
 - `web/*`: tenant middleware and guards for net/http, Gin, Echo, Fiber, and Kratos.
@@ -243,11 +250,11 @@ The PowerShell runners start a local disposable Docker Compose environment for M
 ```powershell
 # Windows PowerShell; PowerShell 7 users may substitute pwsh.
 # SQL-contract coverage from the disposable MySQL/PostgreSQL tests.
-$sqlProfile = Join-Path $env:TEMP 'gotenancy-sql-contract-coverage.out'
+$sqlProfile = Join-Path $env:TEMP 'saas-sql-contract-coverage.out'
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/run-integration.ps1 -CoverageProfile $sqlProfile
 
-$unitProfile = Join-Path $env:TEMP 'gotenancy-unit-coverage.out'
-$profile = Join-Path $env:TEMP 'gotenancy-coverage.out' # merged unit + database profile
+$unitProfile = Join-Path $env:TEMP 'saas-unit-coverage.out'
+$profile = Join-Path $env:TEMP 'saas-coverage.out' # merged unit + database profile
 go test -count=1 -covermode=atomic -coverpkg=./... "-coverprofile=$unitProfile" ./...
 ./tests/merge-coverage.ps1 -Profiles @($unitProfile, $sqlProfile) -Output $profile
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/check-coverage.ps1 -Profile $profile -Minimum 85
@@ -263,7 +270,12 @@ For production Redis, configure TLS, timeouts, retry limits, and OpenTelemetry o
 ```text
 core/          Tenant context, resolver, store, and types
 data/          Data filtering contracts and adapters
-saas/          Tenant lifecycle, plan, subscription, quota, feature, and onboarding modules
+tenant/        Tenant lifecycle module
+plan/          Plan metadata and storage
+subscription/  Subscription lifecycle and billing hooks
+quota/         Quota checking and consumption
+feature/       Feature defaults and tenant overrides
+onboarding/    Cross-module tenant onboarding
 web/           Web framework and net/http integration
 migration/     Tenant schema migration planning
 cache/         Tenant-aware cache abstractions

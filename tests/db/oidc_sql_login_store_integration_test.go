@@ -12,17 +12,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DarkInno/gotenancy/biz/identity/oidc"
+	"github.com/DarkInno/saas/biz/identity/oidc"
 )
 
 func TestOIDCSQLLoginStoreMySQLIntegration(t *testing.T) {
-	runOIDCSQLLoginStoreIntegration(t, "mysql", os.Getenv("GOTENANCY_MYSQL_DSN"), resetMySQLOIDCLoginsTable, func(db *sql.DB) (*oidc.SQLLoginStore, error) {
+	runOIDCSQLLoginStoreIntegration(t, "mysql", os.Getenv("SAAS_MYSQL_DSN"), resetMySQLOIDCLoginsTable, func(db *sql.DB) (*oidc.SQLLoginStore, error) {
 		return oidc.NewSQLLoginStore(db)
 	})
 }
 
 func TestOIDCSQLLoginStorePostgresIntegration(t *testing.T) {
-	runOIDCSQLLoginStoreIntegration(t, "postgres", os.Getenv("GOTENANCY_POSTGRES_DSN"), resetPostgresOIDCLoginsTable, func(db *sql.DB) (*oidc.SQLLoginStore, error) {
+	runOIDCSQLLoginStoreIntegration(t, "postgres", os.Getenv("SAAS_POSTGRES_DSN"), resetPostgresOIDCLoginsTable, func(db *sql.DB) (*oidc.SQLLoginStore, error) {
 		return oidc.NewSQLLoginStore(db, oidc.WithSQLDialect(oidc.SQLDialectPostgres))
 	})
 }

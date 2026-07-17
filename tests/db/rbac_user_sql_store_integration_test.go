@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DarkInno/gotenancy/biz/rbac"
-	"github.com/DarkInno/gotenancy/biz/user"
-	"github.com/DarkInno/gotenancy/core/types"
+	"github.com/DarkInno/saas/biz/rbac"
+	"github.com/DarkInno/saas/biz/user"
+	"github.com/DarkInno/saas/core/types"
 )
 
 func TestRBACAndUserSQLStoreMySQLIntegration(t *testing.T) {
-	runRBACAndUserSQLStoreIntegration(t, "mysql", os.Getenv("GOTENANCY_MYSQL_DSN"), resetMySQLRBACAndUserTables, func(db *sql.DB) (rbac.Service, user.PagedService, error) {
+	runRBACAndUserSQLStoreIntegration(t, "mysql", os.Getenv("SAAS_MYSQL_DSN"), resetMySQLRBACAndUserTables, func(db *sql.DB) (rbac.Service, user.PagedService, error) {
 		rbacStore, err := rbac.NewSQLStore(db)
 		if err != nil {
 			return nil, nil, err
@@ -26,7 +26,7 @@ func TestRBACAndUserSQLStoreMySQLIntegration(t *testing.T) {
 }
 
 func TestRBACAndUserSQLStorePostgresIntegration(t *testing.T) {
-	runRBACAndUserSQLStoreIntegration(t, "postgres", os.Getenv("GOTENANCY_POSTGRES_DSN"), resetPostgresRBACAndUserTables, func(db *sql.DB) (rbac.Service, user.PagedService, error) {
+	runRBACAndUserSQLStoreIntegration(t, "postgres", os.Getenv("SAAS_POSTGRES_DSN"), resetPostgresRBACAndUserTables, func(db *sql.DB) (rbac.Service, user.PagedService, error) {
 		rbacStore, err := rbac.NewSQLStore(db, rbac.WithSQLDialect(rbac.SQLDialectPostgres))
 		if err != nil {
 			return nil, nil, err

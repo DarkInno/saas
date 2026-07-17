@@ -1,14 +1,14 @@
-package fibergotenancy
+package fibersaas
 
 import (
 	"context"
 	"errors"
 	"net/http"
 
-	tenantctx "github.com/DarkInno/gotenancy/core/context"
-	"github.com/DarkInno/gotenancy/core/resolver"
-	"github.com/DarkInno/gotenancy/core/store"
-	"github.com/DarkInno/gotenancy/core/types"
+	tenantctx "github.com/DarkInno/saas/core/context"
+	"github.com/DarkInno/saas/core/resolver"
+	"github.com/DarkInno/saas/core/store"
+	"github.com/DarkInno/saas/core/types"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"

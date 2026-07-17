@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"log"
 
-	tenantctx "github.com/DarkInno/gotenancy/core/context"
-	"github.com/DarkInno/gotenancy/core/store"
-	"github.com/DarkInno/gotenancy/core/types"
-	baserpc "github.com/DarkInno/gotenancy/rpc"
-	grpcgotenancy "github.com/DarkInno/gotenancy/rpc/grpc"
+	tenantctx "github.com/DarkInno/saas/core/context"
+	"github.com/DarkInno/saas/core/store"
+	"github.com/DarkInno/saas/core/types"
+	baserpc "github.com/DarkInno/saas/rpc"
+	grpcsaas "github.com/DarkInno/saas/rpc/grpc"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -31,7 +31,7 @@ func main() {
 		"tenant-a",
 	))
 
-	interceptor := grpcgotenancy.TenantUnaryServerInterceptor(tenants)
+	interceptor := grpcsaas.TenantUnaryServerInterceptor(tenants)
 	response, err := interceptor(
 		incoming,
 		"list orders request",

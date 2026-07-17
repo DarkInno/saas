@@ -12,7 +12,7 @@ import (
 func TestNewSMTPNotifierValidation(t *testing.T) {
 	notifier, err := NewSMTPNotifier(SMTPConfig{
 		Host: "smtp.example.com",
-		From: "GoTenancy <noreply@example.com>",
+		From: "SaaS <noreply@example.com>",
 	})
 	if err != nil {
 		t.Fatalf("NewSMTPNotifier() error = %v", err)
@@ -57,7 +57,7 @@ func TestBuildSMTPMessage(t *testing.T) {
 		t.Fatalf("parseAddressList() error = %v", err)
 	}
 
-	raw, err := buildSMTPMessage("GoTenancy <noreply@example.com>", recipients, Message{
+	raw, err := buildSMTPMessage("SaaS <noreply@example.com>", recipients, Message{
 		TenantID: "tenant-a",
 		Channel:  ChannelEmail,
 		To:       "User <user@example.com>, other@example.com",
@@ -69,7 +69,7 @@ func TestBuildSMTPMessage(t *testing.T) {
 	}
 	message := string(raw)
 	for _, want := range []string{
-		"From: GoTenancy <noreply@example.com>\r\n",
+		"From: SaaS <noreply@example.com>\r\n",
 		"To: \"User\" <user@example.com>, <other@example.com>\r\n",
 		"Subject: Welcome\r\n",
 		"Content-Type: text/plain; charset=\"utf-8\"\r\n",

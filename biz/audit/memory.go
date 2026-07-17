@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DarkInno/gotenancy/core/types"
+	"github.com/DarkInno/saas/core/types"
 )
 
 var _ Store = (*MemoryStore)(nil)

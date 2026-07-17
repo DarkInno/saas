@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/DarkInno/gotenancy/data"
+	"github.com/DarkInno/saas/data"
 )
 
 // Queryer is implemented by *sqlx.DB and *sqlx.Tx.

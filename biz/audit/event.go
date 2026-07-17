@@ -3,7 +3,7 @@ package audit
 import (
 	"time"
 
-	"github.com/DarkInno/gotenancy/core/types"
+	"github.com/DarkInno/saas/core/types"
 )
 
 type Event struct {

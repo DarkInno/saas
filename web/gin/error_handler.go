@@ -1,4 +1,4 @@
-package gingotenancy
+package ginsaas
 
 import (
 	"net/http"

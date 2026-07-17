@@ -10,17 +10,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DarkInno/gotenancy/saas/quota"
+	"github.com/DarkInno/saas/quota"
 )
 
 func TestQuotaSQLStoreMySQLIntegration(t *testing.T) {
-	runQuotaSQLStoreIntegration(t, "mysql", os.Getenv("GOTENANCY_MYSQL_DSN"), resetMySQLQuotaUsageTable, func(db *sql.DB) (*quota.SQLStore, error) {
+	runQuotaSQLStoreIntegration(t, "mysql", os.Getenv("SAAS_MYSQL_DSN"), resetMySQLQuotaUsageTable, func(db *sql.DB) (*quota.SQLStore, error) {
 		return quota.NewSQLStore(db)
 	})
 }
 
 func TestQuotaSQLStorePostgresIntegration(t *testing.T) {
-	runQuotaSQLStoreIntegration(t, "postgres", os.Getenv("GOTENANCY_POSTGRES_DSN"), resetPostgresQuotaUsageTable, func(db *sql.DB) (*quota.SQLStore, error) {
+	runQuotaSQLStoreIntegration(t, "postgres", os.Getenv("SAAS_POSTGRES_DSN"), resetPostgresQuotaUsageTable, func(db *sql.DB) (*quota.SQLStore, error) {
 		return quota.NewSQLStore(db, quota.WithSQLDialect(quota.SQLDialectPostgres))
 	})
 }

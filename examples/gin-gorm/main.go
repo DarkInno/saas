@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	tenantctx "github.com/DarkInno/gotenancy/core/context"
-	"github.com/DarkInno/gotenancy/core/resolver"
-	"github.com/DarkInno/gotenancy/core/store"
-	"github.com/DarkInno/gotenancy/core/types"
-	gormtenant "github.com/DarkInno/gotenancy/data/gorm"
-	gingotenancy "github.com/DarkInno/gotenancy/web/gin"
+	tenantctx "github.com/DarkInno/saas/core/context"
+	"github.com/DarkInno/saas/core/resolver"
+	"github.com/DarkInno/saas/core/store"
+	"github.com/DarkInno/saas/core/types"
+	gormtenant "github.com/DarkInno/saas/data/gorm"
+	ginsaas "github.com/DarkInno/saas/web/gin"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
@@ -83,7 +83,7 @@ func newRouter(db *gorm.DB, tenants store.Store) *gin.Engine {
 	)
 
 	router := gin.New()
-	router.Use(gingotenancy.TenantMiddleware(tenantResolver, tenants))
+	router.Use(ginsaas.TenantMiddleware(tenantResolver, tenants))
 	router.GET("/orders", func(c *gin.Context) {
 		tenant, ok := tenantctx.FromContext(c.Request.Context())
 		if !ok {

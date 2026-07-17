@@ -1,6 +1,6 @@
 package gormtenant
 
-import "github.com/DarkInno/gotenancy/data"
+import "github.com/DarkInno/saas/data"
 
 // Config controls the GORM tenant plugin.
 type Config struct {

@@ -27,10 +27,10 @@ const (
 
 var (
 	// ErrEmptyTenantID reports an empty tenant identifier.
-	ErrEmptyTenantID = errors.New("gotenancy/types: empty tenant id")
+	ErrEmptyTenantID = errors.New("saas/types: empty tenant id")
 
 	// ErrInvalidTenantID reports a tenant identifier that does not match the configured strategy.
-	ErrInvalidTenantID = errors.New("gotenancy/types: invalid tenant id")
+	ErrInvalidTenantID = errors.New("saas/types: invalid tenant id")
 )
 
 // String returns the string form of the tenant identifier.

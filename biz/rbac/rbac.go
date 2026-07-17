@@ -1,6 +1,6 @@
 package rbac
 
-import "github.com/DarkInno/gotenancy/core/types"
+import "github.com/DarkInno/saas/core/types"
 
 type Permission string
 

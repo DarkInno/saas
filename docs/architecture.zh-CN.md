@@ -2,7 +2,7 @@
 
 [EN](architecture.md) | [中文](architecture.zh-CN.md)
 
-GoTenancy 是一个组装到宿主 Go 应用中的库；它本身不运行 HTTP/gRPC 服务，也不独立拥有部署。本图展示了该模块实现的集成边界以及常规的租户作用域请求路径。存储和外部系统节点由宿主选择和配置；它们是受支持的集成点，而不是本仓库部署的服务。
+SaaS 是一个组装到宿主 Go 应用中的库；它本身不运行 HTTP/gRPC 服务，也不独立拥有部署。本图展示了该模块实现的集成边界以及常规的租户作用域请求路径。存储和外部系统节点由宿主选择和配置；它们是受支持的集成点，而不是本仓库部署的服务。
 
 ```mermaid
 flowchart TB
@@ -13,7 +13,7 @@ flowchart TB
         grpc["gRPC integration<br/>rpc/grpc interceptors"]
         direct["Direct invocation<br/>workers, CLI, application services"]
         app["Handlers and application services<br/>propagate context.Context"]
-        modules["SaaS and business modules<br/>saas/* and biz/*"]
+        modules["SaaS and business modules<br/>tenant、plan、subscription、quota、feature、onboarding 和 biz/*"]
         telemetry["Observability helpers<br/>obs; host configures exporters"]
     end
 
@@ -35,7 +35,7 @@ flowchart TB
     end
 
     subgraph adapters["Host-selected storage and external adapters"]
-        stores["Memory or host-provided database/sql stores<br/>core, saas, and biz"]
+        stores["Memory or host-provided database/sql stores<br/>core、生命周期模块和 biz"]
         database["Host-managed shared application database<br/>tenant-owned rows include tenant_id"]
         redis["Host-provided optional Redis cache"]
         idp["OIDC identity provider"]

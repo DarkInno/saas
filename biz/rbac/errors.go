@@ -3,14 +3,14 @@ package rbac
 import "errors"
 
 var (
-	ErrInvalidRole    = errors.New("gotenancy/rbac: invalid role")
-	ErrRoleNotFound   = errors.New("gotenancy/rbac: role not found")
-	ErrRoleExists     = errors.New("gotenancy/rbac: role already exists")
-	ErrPermissionDeny = errors.New("gotenancy/rbac: permission denied")
+	ErrInvalidRole    = errors.New("saas/rbac: invalid role")
+	ErrRoleNotFound   = errors.New("saas/rbac: role not found")
+	ErrRoleExists     = errors.New("saas/rbac: role already exists")
+	ErrPermissionDeny = errors.New("saas/rbac: permission denied")
 
-	ErrNilDB = errors.New("gotenancy/rbac: nil db")
+	ErrNilDB = errors.New("saas/rbac: nil db")
 
-	ErrInvalidTableName = errors.New("gotenancy/rbac: invalid table name")
+	ErrInvalidTableName = errors.New("saas/rbac: invalid table name")
 
-	ErrUnsupportedSQLDialect = errors.New("gotenancy/rbac: unsupported sql dialect")
+	ErrUnsupportedSQLDialect = errors.New("saas/rbac: unsupported sql dialect")
 )

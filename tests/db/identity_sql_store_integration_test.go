@@ -10,17 +10,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DarkInno/gotenancy/biz/identity"
+	"github.com/DarkInno/saas/biz/identity"
 )
 
 func TestIdentitySQLStoreMySQLIntegration(t *testing.T) {
-	runIdentitySQLStoreIntegration(t, "mysql", os.Getenv("GOTENANCY_MYSQL_DSN"), resetMySQLIdentityLinksTable, func(db *sql.DB) (*identity.SQLStore, error) {
+	runIdentitySQLStoreIntegration(t, "mysql", os.Getenv("SAAS_MYSQL_DSN"), resetMySQLIdentityLinksTable, func(db *sql.DB) (*identity.SQLStore, error) {
 		return identity.NewSQLStore(db)
 	})
 }
 
 func TestIdentitySQLStorePostgresIntegration(t *testing.T) {
-	runIdentitySQLStoreIntegration(t, "postgres", os.Getenv("GOTENANCY_POSTGRES_DSN"), resetPostgresIdentityLinksTable, func(db *sql.DB) (*identity.SQLStore, error) {
+	runIdentitySQLStoreIntegration(t, "postgres", os.Getenv("SAAS_POSTGRES_DSN"), resetPostgresIdentityLinksTable, func(db *sql.DB) (*identity.SQLStore, error) {
 		return identity.NewSQLStore(db, identity.WithSQLDialect(identity.SQLDialectPostgres))
 	})
 }

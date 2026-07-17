@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DarkInno/gotenancy/core/types"
-	"github.com/DarkInno/gotenancy/internal/sqlutil"
+	"github.com/DarkInno/saas/core/types"
+	"github.com/DarkInno/saas/internal/sqlutil"
 )
 
 const (

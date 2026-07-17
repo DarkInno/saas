@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"testing"
 
-	tenantctx "github.com/DarkInno/gotenancy/core/context"
-	"github.com/DarkInno/gotenancy/core/types"
+	tenantctx "github.com/DarkInno/saas/core/context"
+	"github.com/DarkInno/saas/core/types"
 )
 
 func BenchmarkFields(b *testing.B) {

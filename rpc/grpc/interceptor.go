@@ -1,12 +1,12 @@
-package grpcgotenancy
+package grpcsaas
 
 import (
 	"context"
 
-	tenantctx "github.com/DarkInno/gotenancy/core/context"
-	"github.com/DarkInno/gotenancy/core/store"
-	"github.com/DarkInno/gotenancy/core/types"
-	baserpc "github.com/DarkInno/gotenancy/rpc"
+	tenantctx "github.com/DarkInno/saas/core/context"
+	"github.com/DarkInno/saas/core/store"
+	"github.com/DarkInno/saas/core/types"
+	baserpc "github.com/DarkInno/saas/rpc"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

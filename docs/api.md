@@ -26,12 +26,12 @@ Public package overview.
 
 | Package | Purpose |
 |---|---|
-| `saas/tenant` | Tenant lifecycle manager with create, activate, suspend, restore, soft-delete, and host-only hard-delete. |
-| `saas/plan` | Plan, feature, and quota metadata with Store, memory implementation, list filters, and `database/sql` SQLStore. |
-| `saas/subscription` | Subscription lifecycle with active/cancelled/expired states, renewal, grace-period expiration scans, billing hook, Store, memory implementation, and `database/sql` SQLStore. |
-| `saas/quota` | Quota checking, atomic consuming, reset, memory implementation, nil-store guards, and `database/sql` SQLStore. |
-| `saas/feature` | Plan default features plus tenant override resolution with memory implementation and `database/sql` SQLStore. |
-| `saas/onboarding` | Cross-module tenant onboarding that creates a tenant, validates the plan, creates the subscription, initializes features and quotas, records audit metadata, sends an optional welcome notification, and activates the tenant. |
+| `tenant` | Tenant lifecycle manager with create, activate, suspend, restore, soft-delete, and host-only hard-delete. |
+| `plan` | Plan, feature, and quota metadata with Store, memory implementation, list filters, and `database/sql` SQLStore. |
+| `subscription` | Subscription lifecycle with active/cancelled/expired states, renewal, grace-period expiration scans, billing hook, Store, memory implementation, and `database/sql` SQLStore. |
+| `quota` | Quota checking, atomic consuming, reset, memory implementation, nil-store guards, and `database/sql` SQLStore. |
+| `feature` | Plan default features plus tenant override resolution with memory implementation and `database/sql` SQLStore. |
+| `onboarding` | Cross-module tenant onboarding that creates a tenant, validates the plan, creates the subscription, initializes features and quotas, records audit metadata, sends an optional welcome notification, and activates the tenant. |
 
 ## Integration
 

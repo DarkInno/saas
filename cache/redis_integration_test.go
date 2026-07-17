@@ -7,22 +7,22 @@ import (
 	"testing"
 	"time"
 
-	tenantctx "github.com/DarkInno/gotenancy/core/context"
-	"github.com/DarkInno/gotenancy/core/types"
+	tenantctx "github.com/DarkInno/saas/core/context"
+	"github.com/DarkInno/saas/core/types"
 	redis "github.com/redis/go-redis/v9"
 )
 
 func TestRedisCacheIntegration(t *testing.T) {
-	addr := os.Getenv("GOTENANCY_REDIS_ADDR")
+	addr := os.Getenv("SAAS_REDIS_ADDR")
 	if addr == "" {
-		t.Skip("set GOTENANCY_REDIS_ADDR to run Redis cache integration tests")
+		t.Skip("set SAAS_REDIS_ADDR to run Redis cache integration tests")
 	}
 
 	db := 0
-	if raw := os.Getenv("GOTENANCY_REDIS_DB"); raw != "" {
+	if raw := os.Getenv("SAAS_REDIS_DB"); raw != "" {
 		parsed, err := strconv.Atoi(raw)
 		if err != nil {
-			t.Fatalf("invalid GOTENANCY_REDIS_DB: %v", err)
+			t.Fatalf("invalid SAAS_REDIS_DB: %v", err)
 		}
 		db = parsed
 	}
@@ -30,7 +30,7 @@ func TestRedisCacheIntegration(t *testing.T) {
 	ctx := context.Background()
 	client := redis.NewClient(&redis.Options{
 		Addr:     addr,
-		Password: os.Getenv("GOTENANCY_REDIS_PASSWORD"),
+		Password: os.Getenv("SAAS_REDIS_PASSWORD"),
 		DB:       db,
 	})
 	if err := client.Ping(ctx).Err(); err != nil {

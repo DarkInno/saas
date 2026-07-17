@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/DarkInno/gotenancy/core/types"
+	"github.com/DarkInno/saas/core/types"
 )
 
 const (

@@ -1,4 +1,4 @@
-module github.com/DarkInno/gotenancy
+module github.com/DarkInno/saas
 
 go 1.24.0
 

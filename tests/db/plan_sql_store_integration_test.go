@@ -9,17 +9,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DarkInno/gotenancy/saas/plan"
+	"github.com/DarkInno/saas/plan"
 )
 
 func TestPlanSQLStoreMySQLIntegration(t *testing.T) {
-	runPlanSQLStoreIntegration(t, "mysql", os.Getenv("GOTENANCY_MYSQL_DSN"), resetMySQLPlansTable, func(db *sql.DB) (*plan.SQLStore, error) {
+	runPlanSQLStoreIntegration(t, "mysql", os.Getenv("SAAS_MYSQL_DSN"), resetMySQLPlansTable, func(db *sql.DB) (*plan.SQLStore, error) {
 		return plan.NewSQLStore(db)
 	})
 }
 
 func TestPlanSQLStorePostgresIntegration(t *testing.T) {
-	runPlanSQLStoreIntegration(t, "postgres", os.Getenv("GOTENANCY_POSTGRES_DSN"), resetPostgresPlansTable, func(db *sql.DB) (*plan.SQLStore, error) {
+	runPlanSQLStoreIntegration(t, "postgres", os.Getenv("SAAS_POSTGRES_DSN"), resetPostgresPlansTable, func(db *sql.DB) (*plan.SQLStore, error) {
 		return plan.NewSQLStore(db, plan.WithSQLDialect(plan.SQLDialectPostgres))
 	})
 }

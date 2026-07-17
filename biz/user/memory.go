@@ -5,7 +5,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/DarkInno/gotenancy/core/types"
+	"github.com/DarkInno/saas/core/types"
 )
 
 var _ Service = (*MemoryService)(nil)

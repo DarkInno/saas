@@ -9,17 +9,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DarkInno/gotenancy/saas/feature"
+	"github.com/DarkInno/saas/feature"
 )
 
 func TestFeatureSQLStoreMySQLIntegration(t *testing.T) {
-	runFeatureSQLStoreIntegration(t, "mysql", os.Getenv("GOTENANCY_MYSQL_DSN"), resetMySQLFeatureFlagsTable, func(db *sql.DB) (*feature.SQLStore, error) {
+	runFeatureSQLStoreIntegration(t, "mysql", os.Getenv("SAAS_MYSQL_DSN"), resetMySQLFeatureFlagsTable, func(db *sql.DB) (*feature.SQLStore, error) {
 		return feature.NewSQLStore(db)
 	})
 }
 
 func TestFeatureSQLStorePostgresIntegration(t *testing.T) {
-	runFeatureSQLStoreIntegration(t, "postgres", os.Getenv("GOTENANCY_POSTGRES_DSN"), resetPostgresFeatureFlagsTable, func(db *sql.DB) (*feature.SQLStore, error) {
+	runFeatureSQLStoreIntegration(t, "postgres", os.Getenv("SAAS_POSTGRES_DSN"), resetPostgresFeatureFlagsTable, func(db *sql.DB) (*feature.SQLStore, error) {
 		return feature.NewSQLStore(db, feature.WithSQLDialect(feature.SQLDialectPostgres))
 	})
 }

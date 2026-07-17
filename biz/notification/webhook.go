@@ -23,16 +23,16 @@ const (
 	ChannelWebhook = "webhook"
 
 	// WebhookSignatureHeader is the default HMAC signature header.
-	WebhookSignatureHeader = "X-GoTenancy-Signature"
+	WebhookSignatureHeader = "X-SaaS-Signature"
 
 	// WebhookTimestampHeader is the default HMAC timestamp header.
-	WebhookTimestampHeader = "X-GoTenancy-Timestamp"
+	WebhookTimestampHeader = "X-SaaS-Timestamp"
 
-	webhookTenantHeader     = "X-GoTenancy-Tenant-ID"
-	webhookChannelHeader    = "X-GoTenancy-Channel"
+	webhookTenantHeader     = "X-SaaS-Tenant-ID"
+	webhookChannelHeader    = "X-SaaS-Channel"
 	idempotencyKeyHeader    = "Idempotency-Key"
 	defaultWebhookTimeout   = 10 * time.Second
-	defaultHTTPUserAgent    = "gotenancy"
+	defaultHTTPUserAgent    = "saas"
 	defaultWebhookBodyLimit = 4096
 )
 

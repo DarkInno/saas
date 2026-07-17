@@ -1,11 +1,11 @@
-module github.com/DarkInno/gotenancy/tests/db
+module github.com/DarkInno/saas/tests/db
 
 go 1.24.0
 
-replace github.com/DarkInno/gotenancy => ../..
+replace github.com/DarkInno/saas => ../..
 
 require (
-	github.com/DarkInno/gotenancy v0.0.0
+	github.com/DarkInno/saas v0.0.0
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/lib/pq v1.10.9
 )

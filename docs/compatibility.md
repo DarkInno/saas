@@ -14,7 +14,7 @@ The module should not require Go `1.25+` dependencies without an explicit compat
 
 ## Isolation Model
 
-GoTenancy supports shared-database isolation with a required `tenant_id` boundary.
+SaaS supports shared-database isolation with a required `tenant_id` boundary.
 
 Independent database and hybrid isolation models are not part of the current API.
 

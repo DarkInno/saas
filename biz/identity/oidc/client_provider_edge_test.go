@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	identity "github.com/DarkInno/gotenancy/biz/identity"
+	identity "github.com/DarkInno/saas/biz/identity"
 )
 
 func TestHandleLoginCallbackRetainsPendingLoginUntilValidCallback(t *testing.T) {

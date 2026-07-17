@@ -2,29 +2,29 @@ $runnerPath = Join-Path $PSScriptRoot 'run-integration.ps1'
 
 Describe 'run-integration.ps1 environment isolation' {
     It 'does not pass an inherited Redis password to the disposable cache test and restores it afterward' {
-        $name = 'GOTENANCY_REDIS_PASSWORD'
+        $name = 'SAAS_REDIS_PASSWORD'
         $previous = [Environment]::GetEnvironmentVariable($name, 'Process')
         $previousDocker = Get-Command docker -CommandType Function -ErrorAction SilentlyContinue
         $previousGo = Get-Command go -CommandType Function -ErrorAction SilentlyContinue
         try {
             [Environment]::SetEnvironmentVariable($name, 'host-inherited-password', 'Process')
-            $global:gotenancyObservedRedisPassword = $null
+            $global:saasObservedRedisPassword = $null
 
             Set-Item -Path Function:\global:docker -Value { $global:LASTEXITCODE = 0 }
             Set-Item -Path Function:\global:go -Value {
                 if ($args -contains './cache') {
-                    $global:gotenancyObservedRedisPassword = [Environment]::GetEnvironmentVariable('GOTENANCY_REDIS_PASSWORD', 'Process')
+                    $global:saasObservedRedisPassword = [Environment]::GetEnvironmentVariable('SAAS_REDIS_PASSWORD', 'Process')
                 }
                 $global:LASTEXITCODE = 0
             }
 
             . $runnerPath -KeepServices
 
-            $global:gotenancyObservedRedisPassword | Should Be $null
+            $global:saasObservedRedisPassword | Should Be $null
             [Environment]::GetEnvironmentVariable($name, 'Process') | Should Be 'host-inherited-password'
         } finally {
             [Environment]::SetEnvironmentVariable($name, $previous, 'Process')
-            Remove-Variable -Name gotenancyObservedRedisPassword -Scope Global -ErrorAction SilentlyContinue
+            Remove-Variable -Name saasObservedRedisPassword -Scope Global -ErrorAction SilentlyContinue
             if ($previousDocker) {
                 Set-Item -Path Function:\global:docker -Value $previousDocker.ScriptBlock
             } else {
@@ -42,20 +42,20 @@ Describe 'run-integration.ps1 environment isolation' {
         $previousDocker = Get-Command docker -CommandType Function -ErrorAction SilentlyContinue
         $previousGo = Get-Command go -CommandType Function -ErrorAction SilentlyContinue
         try {
-            $global:gotenancyDatabaseTestArguments = @()
+            $global:saasDatabaseTestArguments = @()
             Set-Item -Path Function:\global:docker -Value { $global:LASTEXITCODE = 0 }
             Set-Item -Path Function:\global:go -Value {
                 if ($args -contains './...') {
-                    $global:gotenancyDatabaseTestArguments = @($args)
+                    $global:saasDatabaseTestArguments = @($args)
                 }
                 $global:LASTEXITCODE = 0
             }
 
             . $runnerPath -KeepServices
 
-            ($global:gotenancyDatabaseTestArguments -contains '^Test(AuditSQLStore|SQLStore|QuotaSQLStore|RBACAndUserSQLStore|IdentitySQLStore|OIDCSQLLoginStore|FeatureSQLStore|PlanSQLStore|SubscriptionSQLStore)(MySQL|Postgres)Integration$') | Should Be $true
+            ($global:saasDatabaseTestArguments -contains '^Test(AuditSQLStore|SQLStore|QuotaSQLStore|RBACAndUserSQLStore|IdentitySQLStore|OIDCSQLLoginStore|FeatureSQLStore|PlanSQLStore|SubscriptionSQLStore)(MySQL|Postgres)Integration$') | Should Be $true
         } finally {
-            Remove-Variable -Name gotenancyDatabaseTestArguments -Scope Global -ErrorAction SilentlyContinue
+            Remove-Variable -Name saasDatabaseTestArguments -Scope Global -ErrorAction SilentlyContinue
             if ($previousDocker) {
                 Set-Item -Path Function:\global:docker -Value $previousDocker.ScriptBlock
             } else {
@@ -73,12 +73,12 @@ Describe 'run-integration.ps1 environment isolation' {
         $previousDocker = Get-Command docker -CommandType Function -ErrorAction SilentlyContinue
         $previousGo = Get-Command go -CommandType Function -ErrorAction SilentlyContinue
         try {
-            $profile = Join-Path $TestDrive 'gotenancy-db-coverage.out'
-            $global:gotenancyDatabaseCoverageArguments = @()
+            $profile = Join-Path $TestDrive 'saas-db-coverage.out'
+            $global:saasDatabaseCoverageArguments = @()
             Set-Item -Path Function:\global:docker -Value { $global:LASTEXITCODE = 0 }
             Set-Item -Path Function:\global:go -Value {
                 if ($args -contains './...') {
-                    $global:gotenancyDatabaseCoverageArguments = @($args)
+                    $global:saasDatabaseCoverageArguments = @($args)
                 }
                 $global:LASTEXITCODE = 0
             }
@@ -86,22 +86,22 @@ Describe 'run-integration.ps1 environment isolation' {
             . $runnerPath -KeepServices -CoverageProfile $profile
 
             $expectedCoveragePackages = @(
-                'github.com/DarkInno/gotenancy/biz/audit',
-                'github.com/DarkInno/gotenancy/biz/identity',
-                'github.com/DarkInno/gotenancy/biz/identity/oidc',
-                'github.com/DarkInno/gotenancy/biz/rbac',
-                'github.com/DarkInno/gotenancy/biz/user',
-                'github.com/DarkInno/gotenancy/core/store',
-                'github.com/DarkInno/gotenancy/saas/feature',
-                'github.com/DarkInno/gotenancy/saas/plan',
-                'github.com/DarkInno/gotenancy/saas/quota',
-                'github.com/DarkInno/gotenancy/saas/subscription'
+                'github.com/DarkInno/saas/biz/audit',
+                'github.com/DarkInno/saas/biz/identity',
+                'github.com/DarkInno/saas/biz/identity/oidc',
+                'github.com/DarkInno/saas/biz/rbac',
+                'github.com/DarkInno/saas/biz/user',
+                'github.com/DarkInno/saas/core/store',
+                'github.com/DarkInno/saas/feature',
+                'github.com/DarkInno/saas/plan',
+                'github.com/DarkInno/saas/quota',
+                'github.com/DarkInno/saas/subscription'
             ) -join ','
-            ($global:gotenancyDatabaseCoverageArguments -contains '-covermode=atomic') | Should Be $true
-            ($global:gotenancyDatabaseCoverageArguments -contains "-coverpkg=$expectedCoveragePackages") | Should Be $true
-            ($global:gotenancyDatabaseCoverageArguments -contains "-coverprofile=$profile") | Should Be $true
+            ($global:saasDatabaseCoverageArguments -contains '-covermode=atomic') | Should Be $true
+            ($global:saasDatabaseCoverageArguments -contains "-coverpkg=$expectedCoveragePackages") | Should Be $true
+            ($global:saasDatabaseCoverageArguments -contains "-coverprofile=$profile") | Should Be $true
         } finally {
-            Remove-Variable -Name gotenancyDatabaseCoverageArguments -Scope Global -ErrorAction SilentlyContinue
+            Remove-Variable -Name saasDatabaseCoverageArguments -Scope Global -ErrorAction SilentlyContinue
             if ($previousDocker) {
                 Set-Item -Path Function:\global:docker -Value $previousDocker.ScriptBlock
             } else {

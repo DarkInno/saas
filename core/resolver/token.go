@@ -3,7 +3,7 @@ package resolver
 import (
 	"net/http"
 
-	"github.com/DarkInno/gotenancy/core/types"
+	"github.com/DarkInno/saas/core/types"
 )
 
 // ClaimExtractor extracts a tenant claim from a request after authentication.

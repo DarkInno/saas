@@ -16,7 +16,7 @@ import (
 func TestSMTPNotifierSendsCompleteMessageOverSMTPProtocol(t *testing.T) {
 	notifier, err := NewSMTPNotifier(SMTPConfig{
 		Host:    "smtp.example.com",
-		From:    "GoTenancy <noreply@example.com>",
+		From:    "SaaS <noreply@example.com>",
 		TLSMode: SMTPTLSModeNone,
 		Timeout: time.Second,
 	})
@@ -122,7 +122,7 @@ func TestSMTPNotifierSendsCompleteMessageOverSMTPProtocol(t *testing.T) {
 
 	data := <-received
 	for _, want := range []string{
-		"From: \"GoTenancy\" <noreply@example.com>\r\n",
+		"From: \"SaaS\" <noreply@example.com>\r\n",
 		"To: <first@example.com>, <second@example.com>\r\n",
 		"Subject: Tenant update\r\n",
 		"\r\nfirst line\r\nsecond line",

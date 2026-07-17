@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DarkInno/gotenancy/core/types"
+	"github.com/DarkInno/saas/core/types"
 )
 
 func FuzzCompositeResolverPriority(f *testing.F) {

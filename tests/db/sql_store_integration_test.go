@@ -8,17 +8,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DarkInno/gotenancy/core/store"
-	"github.com/DarkInno/gotenancy/internal/testcontract"
+	"github.com/DarkInno/saas/core/store"
+	"github.com/DarkInno/saas/internal/testcontract"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 )
 
 func TestSQLStoreMySQLIntegration(t *testing.T) {
-	dsn := os.Getenv("GOTENANCY_MYSQL_DSN")
+	dsn := os.Getenv("SAAS_MYSQL_DSN")
 	if dsn == "" {
-		t.Skip("set GOTENANCY_MYSQL_DSN to run MySQL integration test")
+		t.Skip("set SAAS_MYSQL_DSN to run MySQL integration test")
 	}
 
 	db, err := sql.Open("mysql", dsn)
@@ -47,9 +47,9 @@ func TestSQLStoreMySQLIntegration(t *testing.T) {
 }
 
 func TestSQLStorePostgresIntegration(t *testing.T) {
-	dsn := os.Getenv("GOTENANCY_POSTGRES_DSN")
+	dsn := os.Getenv("SAAS_POSTGRES_DSN")
 	if dsn == "" {
-		t.Skip("set GOTENANCY_POSTGRES_DSN to run PostgreSQL integration test")
+		t.Skip("set SAAS_POSTGRES_DSN to run PostgreSQL integration test")
 	}
 
 	db, err := sql.Open("postgres", dsn)

@@ -3,13 +3,13 @@ package data
 import (
 	"errors"
 
-	"github.com/DarkInno/gotenancy"
+	"github.com/DarkInno/saas"
 )
 
 var (
 	// ErrNoTenant reports that a tenant-scoped filter was requested without tenant context.
-	ErrNoTenant = gotenancy.ErrNoTenant
+	ErrNoTenant = saas.ErrNoTenant
 
 	// ErrInvalidFieldName reports an unsafe field name in filter options.
-	ErrInvalidFieldName = errors.New("gotenancy/data: invalid field name")
+	ErrInvalidFieldName = errors.New("saas/data: invalid field name")
 )

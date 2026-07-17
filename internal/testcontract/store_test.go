@@ -3,8 +3,8 @@ package testcontract
 import (
 	"testing"
 
-	"github.com/DarkInno/gotenancy/core/store"
-	"github.com/DarkInno/gotenancy/core/types"
+	"github.com/DarkInno/saas/core/store"
+	"github.com/DarkInno/saas/core/types"
 )
 
 func TestRunStoreContractWithMemoryStore(t *testing.T) {

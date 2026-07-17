@@ -2,7 +2,14 @@
 
 [EN](CHANGELOG.md) | [中文](CHANGELOG.zh-CN.md)
 
-All notable changes to GoTenancy are documented in this file.
+All notable changes to SaaS are documented in this file.
+
+## v0.2.0 - 2026-07-17
+
+- Renamed GoTenancy to SaaS and moved the public Go module path to `github.com/DarkInno/saas`.
+- Flattened lifecycle modules from `saas/*` to top-level `tenant`, `plan`, `subscription`, `quota`, `feature`, and `onboarding` packages.
+- Renamed framework adapter package identifiers, webhook default headers, integration/chaos environment variables, the default outbound User-Agent, OpenTelemetry instrumentation scope, and CI coverage artifacts to SaaS equivalents.
+- Kept the Go `1.24.0` minimum and cache key protocol unchanged. See [the v0.2 migration guide](docs/migration-v0.2.md) for the complete upgrade mapping.
 
 ## v0.1.7 - 2026-07-09
 

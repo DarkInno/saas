@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DarkInno/gotenancy"
-	tenantctx "github.com/DarkInno/gotenancy/core/context"
-	"github.com/DarkInno/gotenancy/core/types"
-	"github.com/DarkInno/gotenancy/data"
+	"github.com/DarkInno/saas"
+	tenantctx "github.com/DarkInno/saas/core/context"
+	"github.com/DarkInno/saas/core/types"
+	"github.com/DarkInno/saas/data"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -307,7 +307,7 @@ func TestHardDeleteRequiresHost(t *testing.T) {
 	ctx := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "tenant-a"})
 
 	tx := HardDelete(ctx, db, &tenantOrder{}, "id = ?", 1)
-	if !errors.Is(tx.Error, gotenancy.ErrHostRequired) {
+	if !errors.Is(tx.Error, saas.ErrHostRequired) {
 		t.Fatalf("HardDelete(tenant) error = %v, want ErrHostRequired", tx.Error)
 	}
 

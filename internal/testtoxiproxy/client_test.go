@@ -20,17 +20,17 @@ func TestClientCreateProxy(t *testing.T) {
 		if request.URL.Path != "/proxies" {
 			t.Errorf("path = %s, want /proxies", request.URL.Path)
 		}
-		assertRequestBody(t, request, `{"name":"gotenancy_redis","listen":"0.0.0.0:8668","upstream":"redis:6379","enabled":true}`)
+		assertRequestBody(t, request, `{"name":"saas_redis","listen":"0.0.0.0:8668","upstream":"redis:6379","enabled":true}`)
 		writer.WriteHeader(http.StatusCreated)
 	}))
 	defer server.Close()
 
-	proxy, err := New(server.URL).CreateProxy(context.Background(), "gotenancy_redis", "0.0.0.0:8668", "redis:6379")
+	proxy, err := New(server.URL).CreateProxy(context.Background(), "saas_redis", "0.0.0.0:8668", "redis:6379")
 	if err != nil {
 		t.Fatalf("CreateProxy() error = %v", err)
 	}
-	if proxy.Name != "gotenancy_redis" {
-		t.Fatalf("proxy.Name = %q, want gotenancy_redis", proxy.Name)
+	if proxy.Name != "saas_redis" {
+		t.Fatalf("proxy.Name = %q, want saas_redis", proxy.Name)
 	}
 }
 
@@ -39,15 +39,15 @@ func TestClientAddTimeout(t *testing.T) {
 		if request.Method != http.MethodPost {
 			t.Errorf("method = %s, want POST", request.Method)
 		}
-		if request.URL.Path != "/proxies/gotenancy_redis/toxics" {
-			t.Errorf("path = %s, want /proxies/gotenancy_redis/toxics", request.URL.Path)
+		if request.URL.Path != "/proxies/saas_redis/toxics" {
+			t.Errorf("path = %s, want /proxies/saas_redis/toxics", request.URL.Path)
 		}
 		assertRequestBody(t, request, `{"name":"blocked","type":"timeout","stream":"downstream","toxicity":1.0,"attributes":{"timeout":0}}`)
 		writer.WriteHeader(http.StatusCreated)
 	}))
 	defer server.Close()
 
-	if err := New(server.URL).AddTimeout(context.Background(), "gotenancy_redis", "blocked"); err != nil {
+	if err := New(server.URL).AddTimeout(context.Background(), "saas_redis", "blocked"); err != nil {
 		t.Fatalf("AddTimeout() error = %v", err)
 	}
 }
@@ -57,15 +57,15 @@ func TestClientSetEnabled(t *testing.T) {
 		if request.Method != http.MethodPost {
 			t.Errorf("method = %s, want POST", request.Method)
 		}
-		if request.URL.Path != "/proxies/gotenancy_redis" {
-			t.Errorf("path = %s, want /proxies/gotenancy_redis", request.URL.Path)
+		if request.URL.Path != "/proxies/saas_redis" {
+			t.Errorf("path = %s, want /proxies/saas_redis", request.URL.Path)
 		}
 		assertRequestBody(t, request, `{"enabled":false}`)
 		writer.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
-	if err := New(server.URL).SetEnabled(context.Background(), "gotenancy_redis", false); err != nil {
+	if err := New(server.URL).SetEnabled(context.Background(), "saas_redis", false); err != nil {
 		t.Fatalf("SetEnabled() error = %v", err)
 	}
 }
@@ -82,17 +82,17 @@ func TestClientDeletePaths(t *testing.T) {
 	defer server.Close()
 
 	client := New(server.URL)
-	if err := client.RemoveToxic(context.Background(), "gotenancy_redis", "blocked"); err != nil {
+	if err := client.RemoveToxic(context.Background(), "saas_redis", "blocked"); err != nil {
 		t.Fatalf("RemoveToxic() error = %v", err)
 	}
-	if err := client.DeleteProxy(context.Background(), "gotenancy_redis"); err != nil {
+	if err := client.DeleteProxy(context.Background(), "saas_redis"); err != nil {
 		t.Fatalf("DeleteProxy() error = %v", err)
 	}
 
-	if got := <-requests; got != "/proxies/gotenancy_redis/toxics/blocked" {
+	if got := <-requests; got != "/proxies/saas_redis/toxics/blocked" {
 		t.Fatalf("first DELETE path = %s, want toxic path", got)
 	}
-	if got := <-requests; got != "/proxies/gotenancy_redis" {
+	if got := <-requests; got != "/proxies/saas_redis" {
 		t.Fatalf("second DELETE path = %s, want proxy path", got)
 	}
 }
@@ -143,7 +143,7 @@ func TestClientNon2xxErrorIsBounded(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err := New(server.URL).DeleteProxy(context.Background(), "gotenancy_redis")
+	err := New(server.URL).DeleteProxy(context.Background(), "saas_redis")
 	if err == nil {
 		t.Fatal("DeleteProxy() error = nil, want non-2xx error")
 	}
