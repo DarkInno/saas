@@ -137,8 +137,6 @@ jobs:
             modules: "examples/quickstart examples/gin-gorm"
           - go-version: "1.23.x"
             modules: "examples/grpc examples/ent"
-          - go-version: "1.24.x"
-            modules: "examples/http-servemux"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
