@@ -911,24 +911,6 @@ func unmarshalUnitParts(id string, status string, region string, rawTags string,
 	}, nil
 }
 
-func (store *SQLStore) requireUnitUpdated(ctx context.Context, desired types.DeploymentUnit, result sql.Result) error {
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected > 0 {
-		return nil
-	}
-	current, err := store.GetUnit(ctx, desired.ID)
-	if err != nil {
-		return err
-	}
-	if unitsEqual(current, desired) {
-		return nil
-	}
-	return ErrDeploymentUnitConflict
-}
-
 func unitsEqual(a types.DeploymentUnit, b types.DeploymentUnit) bool {
 	if a.ID != b.ID || a.Status != b.Status || a.Region != b.Region || len(a.ResidencyTags) != len(b.ResidencyTags) || len(a.Metadata) != len(b.Metadata) {
 		return false

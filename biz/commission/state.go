@@ -79,21 +79,6 @@ const (
 	EarningActionReverse          EarningAction = "reverse"
 )
 
-func validEarningAction(action EarningAction) bool {
-	switch action {
-	case EarningActionMakeAvailable,
-		EarningActionHold,
-		EarningActionRelease,
-		EarningActionStartSettlement,
-		EarningActionSettle,
-		EarningActionRejectSettlement,
-		EarningActionReverse:
-		return true
-	default:
-		return false
-	}
-}
-
 // TransitionEarning returns the state reached by applying action to status.
 func TransitionEarning(status EarningStatus, action EarningAction) (EarningStatus, error) {
 	switch status {

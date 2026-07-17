@@ -730,15 +730,17 @@ func (store *SQLStore) loadOutbox(ctx context.Context, queryer sqlQueryer, tenan
 	return event, err
 }
 
-func (store *SQLStore) listEarningsForEvent(ctx context.Context, queryer sqlQueryer, tenantID types.TenantID, sourceType string, sourceID string) ([]Earning, error) {
+func (store *SQLStore) listEarningsForEvent(ctx context.Context, queryer sqlQueryer, tenantID types.TenantID, sourceType string, sourceID string) (earnings []Earning, err error) {
 	query := fmt.Sprintf("SELECT %s FROM %s WHERE tenant_id = %s AND source_type = %s AND source_id = %s ORDER BY id", earningSelectColumns, store.tables.Earnings, store.placeholder(1), store.placeholder(2), store.placeholder(3))
 	rows, err := queryer.QueryContext(ctx, query, tenantID.String(), sourceType, sourceID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		err = errors.Join(err, rows.Close())
+	}()
 
-	earnings := make([]Earning, 0)
+	earnings = make([]Earning, 0)
 	for rows.Next() {
 		earning, err := scanEarning(rows)
 		if err != nil {
@@ -1014,7 +1016,7 @@ func (store *SQLStore) SetAttribution(ctx context.Context, attribution Attributi
 }
 
 // ListAttributions returns tenant-program attributions ordered by rule slot.
-func (store *SQLStore) ListAttributions(ctx context.Context, tenantID types.TenantID, programID string) ([]Attribution, error) {
+func (store *SQLStore) ListAttributions(ctx context.Context, tenantID types.TenantID, programID string) (attributions []Attribution, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -1026,9 +1028,11 @@ func (store *SQLStore) ListAttributions(ctx context.Context, tenantID types.Tena
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		err = errors.Join(err, rows.Close())
+	}()
 
-	attributions := make([]Attribution, 0)
+	attributions = make([]Attribution, 0)
 	for rows.Next() {
 		attribution, err := scanAttribution(rows)
 		if err != nil {
@@ -1176,7 +1180,7 @@ func (store *SQLStore) GetEarning(ctx context.Context, tenantID types.TenantID, 
 }
 
 // ListEarnings returns tenant-scoped earnings in ID order.
-func (store *SQLStore) ListEarnings(ctx context.Context, tenantID types.TenantID, filter EarningFilter) ([]Earning, error) {
+func (store *SQLStore) ListEarnings(ctx context.Context, tenantID types.TenantID, filter EarningFilter) (earnings []Earning, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -1215,9 +1219,11 @@ func (store *SQLStore) ListEarnings(ctx context.Context, tenantID types.TenantID
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		err = errors.Join(err, rows.Close())
+	}()
 
-	earnings := make([]Earning, 0)
+	earnings = make([]Earning, 0)
 	for rows.Next() {
 		earning, err := scanEarning(rows)
 		if err != nil {
@@ -1232,7 +1238,7 @@ func (store *SQLStore) ListEarnings(ctx context.Context, tenantID types.TenantID
 }
 
 // ListJournalEntries returns immutable entries for one tenant-scoped earning.
-func (store *SQLStore) ListJournalEntries(ctx context.Context, tenantID types.TenantID, earningID string) ([]JournalEntry, error) {
+func (store *SQLStore) ListJournalEntries(ctx context.Context, tenantID types.TenantID, earningID string) (entries []JournalEntry, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -1244,9 +1250,11 @@ func (store *SQLStore) ListJournalEntries(ctx context.Context, tenantID types.Te
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		err = errors.Join(err, rows.Close())
+	}()
 
-	entries := make([]JournalEntry, 0)
+	entries = make([]JournalEntry, 0)
 	for rows.Next() {
 		entry, err := scanJournal(rows)
 		if err != nil {
@@ -1603,7 +1611,7 @@ func (store *SQLStore) FinishSettlement(ctx context.Context, tenantID types.Tena
 }
 
 // ListOutbox returns tenant-scoped outbox events ordered by (created_at, id).
-func (store *SQLStore) ListOutbox(ctx context.Context, tenantID types.TenantID, filter OutboxFilter) ([]OutboxEvent, error) {
+func (store *SQLStore) ListOutbox(ctx context.Context, tenantID types.TenantID, filter OutboxFilter) (events []OutboxEvent, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -1631,9 +1639,11 @@ func (store *SQLStore) ListOutbox(ctx context.Context, tenantID types.TenantID, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		err = errors.Join(err, rows.Close())
+	}()
 
-	events := make([]OutboxEvent, 0)
+	events = make([]OutboxEvent, 0)
 	for rows.Next() {
 		event, err := scanOutbox(rows)
 		if err != nil {
