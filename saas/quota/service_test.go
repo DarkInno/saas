@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestServiceConsumeCheckAndReset(t *testing.T) {
@@ -56,6 +57,90 @@ func TestServiceValidation(t *testing.T) {
 	if _, err := NewService(nil).Check(ctx, Limit{TenantID: "tenant-a", Resource: "api", Limit: 1, Period: PeriodDay}, 1); !errors.Is(err, ErrNilStore) {
 		t.Fatalf("Check(nil store) error = %v, want ErrNilStore", err)
 	}
+}
+
+func TestWaitForQuotaMutationRetryHonorsCanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := waitForQuotaMutationRetry(ctx, 4); !errors.Is(err, context.Canceled) {
+		t.Fatalf("waitForQuotaMutationRetry() error = %v, want context.Canceled", err)
+	}
+}
+
+func TestRetryQuotaMutation(t *testing.T) {
+	retryable := errors.New("pq: could not serialize access due to concurrent update")
+
+	t.Run("retries and succeeds", func(t *testing.T) {
+		attempts := 0
+		waits := 0
+		used, err := retryQuotaMutation(context.Background(), func() (int64, error) {
+			attempts++
+			if attempts == 1 {
+				return 0, retryable
+			}
+			return 7, nil
+		}, func(context.Context, int) error {
+			waits++
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("retryQuotaMutation() error = %v", err)
+		}
+		if used != 7 || attempts != 2 || waits != 1 {
+			t.Fatalf("retryQuotaMutation() = used %d, attempts %d, waits %d; want 7, 2, 1", used, attempts, waits)
+		}
+	})
+
+	t.Run("returns original error after retry exhaustion", func(t *testing.T) {
+		attempts := 0
+		waits := 0
+		used, err := retryQuotaMutation(context.Background(), func() (int64, error) {
+			attempts++
+			return 0, retryable
+		}, func(context.Context, int) error {
+			waits++
+			return nil
+		})
+		if err != retryable {
+			t.Fatalf("retryQuotaMutation() error = %v, want original retryable error", err)
+		}
+		if used != 0 || attempts != quotaMutationMaxAttempts || waits != quotaMutationMaxAttempts-1 {
+			t.Fatalf("retryQuotaMutation() = used %d, attempts %d, waits %d; want 0, %d, %d", used, attempts, waits, quotaMutationMaxAttempts, quotaMutationMaxAttempts-1)
+		}
+	})
+
+	t.Run("cancels while waiting to retry", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		waitStarted := make(chan struct{})
+		result := make(chan error, 1)
+		go func() {
+			_, err := retryQuotaMutation(ctx, func() (int64, error) {
+				return 0, retryable
+			}, func(ctx context.Context, _ int) error {
+				close(waitStarted)
+				<-ctx.Done()
+				return ctx.Err()
+			})
+			result <- err
+		}()
+
+		select {
+		case <-waitStarted:
+		case <-time.After(time.Second):
+			t.Fatal("retryQuotaMutation() did not begin retry backoff")
+		}
+		cancel()
+		select {
+		case err := <-result:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("retryQuotaMutation() error = %v, want context.Canceled", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("retryQuotaMutation() did not stop after context cancellation")
+		}
+	})
 }
 
 func TestServiceConsumeIsAtomicUnderConcurrency(t *testing.T) {

@@ -150,3 +150,48 @@ func IsDuplicateKeyError(err error) bool {
 	}
 	return false
 }
+
+// IsRetryableTransactionError reports whether err represents a transient
+// serialization, deadlock, or lock-contention failure that is safe to retry
+// from the start of a transaction.
+func IsRetryableTransactionError(err error) bool {
+	for err != nil {
+		if state, ok := err.(interface{ SQLState() string }); ok {
+			switch state.SQLState() {
+			case "40001", "40P01", "55P03":
+				return true
+			}
+		}
+
+		message := strings.ToLower(err.Error())
+		switch {
+		case strings.Contains(message, "could not serialize access"):
+			return true
+		case strings.Contains(message, "serialization failure"):
+			return true
+		case strings.Contains(message, "deadlock detected"):
+			return true
+		case strings.Contains(message, "deadlock found"):
+			return true
+		case strings.Contains(message, "lock wait timeout"):
+			return true
+		case strings.Contains(message, "lock not available"):
+			return true
+		case strings.Contains(message, "canceling statement due to lock timeout"):
+			return true
+		case strings.Contains(message, "database is locked"):
+			return true
+		}
+
+		if joined, ok := err.(interface{ Unwrap() []error }); ok {
+			for _, child := range joined.Unwrap() {
+				if IsRetryableTransactionError(child) {
+					return true
+				}
+			}
+			return false
+		}
+		err = errors.Unwrap(err)
+	}
+	return false
+}

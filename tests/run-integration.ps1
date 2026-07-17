@@ -35,7 +35,7 @@ try {
     Invoke-Checked go @('test', './data/gorm', '-run', '^TestMySQLIntegrationEnforcesTenantIsolation$', '-count=1')
     Push-Location (Join-Path $repoRoot 'tests/db')
     try {
-        Invoke-Checked go @('test', './...', '-run', '^TestSQLStore(MySQL|Postgres)Integration$', '-count=1')
+        Invoke-Checked go @('test', './...', '-run', '^Test(SQLStore|QuotaSQLStore)(MySQL|Postgres)Integration$', '-count=1')
     } finally {
         Pop-Location
     }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/DarkInno/gotenancy/core/types"
 	"github.com/DarkInno/gotenancy/internal/sqlutil"
@@ -14,6 +15,8 @@ import (
 const (
 	// DefaultSQLTableName is the default quota usage table name.
 	DefaultSQLTableName = "saas_quota_usage"
+
+	quotaMutationMaxAttempts = 16
 )
 
 // SQLDialect controls SQL placeholder rendering for SQLStore.
@@ -163,18 +166,45 @@ func (store *SQLStore) Reset(ctx context.Context, tenantID types.TenantID, resou
 }
 
 func (store *SQLStore) mutateUsage(ctx context.Context, tenantID types.TenantID, resource string, period Period, amount int64, limit *Limit) (int64, error) {
+	return retryQuotaMutation(ctx, func() (int64, error) {
+		return store.mutateUsageOnce(ctx, tenantID, resource, period, amount, limit)
+	}, waitForQuotaMutationRetry)
+}
+
+func retryQuotaMutation(ctx context.Context, mutate func() (int64, error), wait func(context.Context, int) error) (int64, error) {
 	var (
 		used int64
 		err  error
 	)
-	for attempt := 0; attempt < 2; attempt++ {
-		used, err = store.mutateUsageOnce(ctx, tenantID, resource, period, amount, limit)
-		if sqlutil.IsDuplicateKeyError(err) {
-			continue
+	for attempt := 0; attempt < quotaMutationMaxAttempts; attempt++ {
+		used, err = mutate()
+		if !sqlutil.IsDuplicateKeyError(err) && !sqlutil.IsRetryableTransactionError(err) {
+			return used, err
 		}
-		return used, err
+		if attempt == quotaMutationMaxAttempts-1 {
+			return used, err
+		}
+		if err := wait(ctx, attempt); err != nil {
+			return 0, err
+		}
 	}
 	return used, err
+}
+
+func waitForQuotaMutationRetry(ctx context.Context, attempt int) error {
+	shift := attempt
+	if shift > 4 {
+		shift = 4
+	}
+	timer := time.NewTimer(time.Millisecond << shift)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (store *SQLStore) mutateUsageOnce(ctx context.Context, tenantID types.TenantID, resource string, period Period, amount int64, limit *Limit) (used int64, err error) {
