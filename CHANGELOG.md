@@ -4,6 +4,10 @@
 
 All notable changes to SaaS are documented in this file.
 
+## v0.2.1 - 2026-07-17
+
+- Clarified the public project, package, and release introductions so the SaaS positioning and supported lifecycle capabilities are visible from GitHub and pkg.go.dev.
+
 ## v0.2.0 - 2026-07-17
 
 - Renamed GoTenancy to SaaS and moved the public Go module path to `github.com/DarkInno/saas`.

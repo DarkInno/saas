@@ -4,6 +4,10 @@
 
 本文件记录 SaaS 的所有重要变更。
 
+## v0.2.1 - 2026-07-17
+
+- 补充项目、根包和 Release 的对外简介，使 GitHub 与 pkg.go.dev 能清晰展示 SaaS 的定位和支持的生命周期能力。
+
 ## v0.2.0 - 2026-07-17
 
 - 将 GoTenancy 更名为 SaaS，并将公开 Go 模块路径迁移到 `github.com/DarkInno/saas`。

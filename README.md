@@ -6,9 +6,9 @@
 [![CI](https://github.com/DarkInno/saas/actions/workflows/ci.yml/badge.svg)](https://github.com/DarkInno/saas/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-SaaS is an ORM-independent Go toolkit for shared-database multi-tenancy with a required `tenant_id` boundary.
+SaaS is a production-oriented, ORM-independent Go toolkit for shared-database multi-tenant products. It makes the required `tenant_id` isolation boundary explicit and pairs it with the SaaS lifecycle components needed to operate tenants.
 
-It provides tenant context, tenant resolution, data guards, web/RPC middleware, tenant metadata storage, and common SaaS modules. The default model is simple: every tenant-owned row carries `tenant_id`, and adapters derive the active tenant from `context.Context`.
+It provides tenant context and resolution, data guards, web/RPC middleware, tenant metadata storage, plans, subscriptions, quotas, feature flags, onboarding, identity links, RBAC, audit, and notifications. Every tenant-owned row carries `tenant_id`, and adapters derive the active tenant from `context.Context`.
 
 ## Scope
 

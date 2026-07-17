@@ -6,9 +6,9 @@
 [![CI](https://github.com/DarkInno/saas/actions/workflows/ci.yml/badge.svg)](https://github.com/DarkInno/saas/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-SaaS 是一个与 ORM 无关的 Go 工具包，用于实现以必需 `tenant_id` 边界为基础的共享数据库多租户。
+SaaS 是一个面向生产环境、与 ORM 无关的 Go 多租户应用工具包，适用于构建共享数据库隔离的 SaaS 产品。它以强制 `tenant_id` 隔离边界为核心，并提供运营租户所需的 SaaS 生命周期能力。
 
-它提供租户上下文、租户解析、数据防护、Web/RPC 中间件、租户元数据存储和常见 SaaS 模块。默认模型很简单：每一行租户所有的数据都带有 `tenant_id`，适配器从 `context.Context` 派生当前活跃租户。
+它提供租户上下文与解析、数据防护、Web/RPC 中间件、租户元数据存储、套餐、订阅、配额、功能开关、入驻流程、身份关联、RBAC、审计和通知。每一行租户数据都带有 `tenant_id`，适配器从 `context.Context` 派生当前活跃租户。
 
 ## 范围
 
