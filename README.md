@@ -236,18 +236,20 @@ On Windows, `go test -race` requires cgo and a C compiler. Without local cgo, ru
 docker run --rm -v "${PWD}:/workspace" -w /workspace -e CGO_ENABLED=1 -e GOFLAGS=-mod=readonly golang:1.24 go test -race ./...
 ```
 
-Optional database integration tests:
+### Disposable integration, coverage, and chaos
 
-```bash
-(cd tests/db && GOTENANCY_MYSQL_DSN='<mysql-dsn>' go test ./... -run TestSQLStoreMySQLIntegration -count=1)
-(cd tests/db && GOTENANCY_POSTGRES_DSN='<postgres-dsn>' go test ./... -run TestSQLStorePostgresIntegration -count=1)
-GOTENANCY_MYSQL_DSN='<mysql-dsn>' go test ./data/gorm -run TestMySQLIntegrationEnforcesTenantIsolation -count=1
-```
+The PowerShell runners start a local disposable Docker Compose environment for MySQL, PostgreSQL, Redis, and (for chaos) Toxiproxy. They create and drop test tables and volumes, so never point their DSNs at shared or production services.
 
-Optional Redis cache integration test:
+```powershell
+# Windows PowerShell; PowerShell 7 users may substitute pwsh.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/run-integration.ps1
 
-```bash
-GOTENANCY_REDIS_ADDR='localhost:6379' go test ./cache -run TestRedisCacheIntegration -count=1
+$profile = Join-Path $env:TEMP 'gotenancy-coverage.out'
+go test -count=1 -covermode=atomic -coverpkg=./... "-coverprofile=$profile" ./...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/check-coverage.ps1 -Profile $profile -Minimum 65
+Remove-Item -LiteralPath $profile, "$profile.txt" -Force -ErrorAction SilentlyContinue
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/run-chaos.ps1
 ```
 
 For production Redis, configure TLS, timeouts, retry limits, and OpenTelemetry on the `go-redis` client before passing it to `cache.NewRedis`.

@@ -235,18 +235,20 @@ go test -race ./...
 docker run --rm -v "${PWD}:/workspace" -w /workspace -e CGO_ENABLED=1 -e GOFLAGS=-mod=readonly golang:1.24 go test -race ./...
 ```
 
-可选的数据库集成测试：
+### 一次性集成、覆盖率与混沌测试
 
-```bash
-(cd tests/db && GOTENANCY_MYSQL_DSN='<mysql-dsn>' go test ./... -run TestSQLStoreMySQLIntegration -count=1)
-(cd tests/db && GOTENANCY_POSTGRES_DSN='<postgres-dsn>' go test ./... -run TestSQLStorePostgresIntegration -count=1)
-GOTENANCY_MYSQL_DSN='<mysql-dsn>' go test ./data/gorm -run TestMySQLIntegrationEnforcesTenantIsolation -count=1
-```
+PowerShell 运行脚本会为 MySQL、PostgreSQL、Redis 以及（混沌测试时）Toxiproxy 启动本地一次性 Docker Compose 环境。脚本会创建和删除测试表及卷，因此绝不能将其 DSN 指向共享或生产服务。
 
-可选的 Redis 缓存集成测试：
+```powershell
+# Windows PowerShell；PowerShell 7 用户可将其替换为 pwsh。
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/run-integration.ps1
 
-```bash
-GOTENANCY_REDIS_ADDR='localhost:6379' go test ./cache -run TestRedisCacheIntegration -count=1
+$profile = Join-Path $env:TEMP 'gotenancy-coverage.out'
+go test -count=1 -covermode=atomic -coverpkg=./... "-coverprofile=$profile" ./...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/check-coverage.ps1 -Profile $profile -Minimum 65
+Remove-Item -LiteralPath $profile, "$profile.txt" -Force -ErrorAction SilentlyContinue
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/run-chaos.ps1
 ```
 
 对于生产 Redis，请在将 `go-redis` 客户端传递给 `cache.NewRedis` 前，配置 TLS、超时、重试限制和 OpenTelemetry。

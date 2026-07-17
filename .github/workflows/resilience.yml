@@ -1,0 +1,37 @@
+name: resilience
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 3"
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: native fuzz
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.24.x"
+          cache: true
+      - run: go test ./data/sqlx -run=^$ -fuzz=FuzzQueryWithArgs -fuzztime=30s
+      - run: go test ./core/types -run=^$ -fuzz=FuzzParseTenantID -fuzztime=30s
+      - run: go test ./core/resolver -run=^$ -fuzz=FuzzCompositeResolverPriority -fuzztime=30s
+      - run: go test ./cache -run=^$ -fuzz=FuzzRedisURLAndKeyBuilder -fuzztime=30s
+
+  chaos:
+    name: deterministic dependency chaos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.24.x"
+          cache: true
+      - name: Run chaos contracts
+        shell: pwsh
+        run: ./tests/run-chaos.ps1

@@ -43,14 +43,18 @@ Independent database and hybrid isolation models are not part of the current API
 
 Use `WithSQLDialect(SQLDialectPostgres)` for PostgreSQL.
 
-Optional integration tests use:
+The disposable integration runner owns the local MySQL, PostgreSQL, and Redis endpoints used by SQLStore, GORM, and Redis cache tests. It must never be configured with shared or production DSNs because the database tests create and drop tables.
 
-- `GOTENANCY_MYSQL_DSN`
-- `GOTENANCY_POSTGRES_DSN`
+## CI and resilience
 
-SQLStore database integration tests live in `tests/db` and are not part of the default CI gate.
+Pull requests run the existing Go version matrix, lint, vulnerability scan, and example smoke tests, plus two dedicated gates:
 
-Redis cache integration tests are optional and run only when `GOTENANCY_REDIS_ADDR` is set. `GOTENANCY_REDIS_PASSWORD` and `GOTENANCY_REDIS_DB` are optional.
+- `coverage` creates an atomic root-module profile, enforces at least 65.0% statements, and uploads the profile and summary artifact.
+- `integration (mysql, postgres, redis)` runs the disposable Compose-backed MySQL, PostgreSQL, GORM, and Redis contracts.
+
+The separate `resilience` workflow runs every Wednesday at 03:17 UTC and on manual dispatch. It executes bounded native fuzz targets and the deterministic Toxiproxy fault/recovery contracts; these longer-running checks are intentionally outside the pull-request path.
+
+Repository branch protection must independently mark `coverage` and `integration (mysql, postgres, redis)` as required checks in GitHub settings.
 
 ## Verification
 

@@ -43,14 +43,18 @@ GoTenancy 支持以必需的 `tenant_id` 边界实现共享数据库隔离。
 
 对于 PostgreSQL，请使用 `WithSQLDialect(SQLDialectPostgres)`。
 
-可选集成测试使用：
+一次性集成运行脚本负责 SQLStore、GORM 和 Redis 缓存测试所使用的本地 MySQL、PostgreSQL 与 Redis 端点。数据库测试会创建和删除表，因此绝不能将脚本配置为使用共享或生产 DSN。
 
-- `GOTENANCY_MYSQL_DSN`
-- `GOTENANCY_POSTGRES_DSN`
+## CI 与韧性测试
 
-SQLStore 数据库集成测试位于 `tests/db`，不属于默认 CI 门禁。
+Pull Request 会运行既有的 Go 版本矩阵、lint、漏洞扫描和示例 smoke 测试，并额外包含两个独立门禁：
 
-只有设置 `GOTENANCY_REDIS_ADDR` 时才运行可选的 Redis 缓存集成测试。`GOTENANCY_REDIS_PASSWORD` 和 `GOTENANCY_REDIS_DB` 为可选项。
+- `coverage` 生成根模块的原子覆盖率 profile，强制至少 65.0% statements，并上传 profile 与摘要 artifact。
+- `integration (mysql, postgres, redis)` 运行基于一次性 Compose 的 MySQL、PostgreSQL、GORM 与 Redis 契约测试。
+
+独立的 `resilience` 工作流会在每周三 03:17 UTC 运行，也可手动触发。它执行有时间上限的原生 fuzz target 和确定性的 Toxiproxy 故障/恢复契约；这些耗时更长的检查有意不放在 Pull Request 路径中。
+
+仓库分支保护还必须在 GitHub 设置中独立将 `coverage` 与 `integration (mysql, postgres, redis)` 设为 required checks。
 
 ## 验证
 
