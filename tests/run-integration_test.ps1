@@ -53,7 +53,7 @@ Describe 'run-integration.ps1 environment isolation' {
 
             . $runnerPath -KeepServices
 
-            ($global:gotenancyDatabaseTestArguments -contains '^Test(SQLStore|QuotaSQLStore|RBACAndUserSQLStore|IdentitySQLStore|OIDCSQLLoginStore|FeatureSQLStore|PlanSQLStore|SubscriptionSQLStore)(MySQL|Postgres)Integration$') | Should Be $true
+            ($global:gotenancyDatabaseTestArguments -contains '^Test(AuditSQLStore|SQLStore|QuotaSQLStore|RBACAndUserSQLStore|IdentitySQLStore|OIDCSQLLoginStore|FeatureSQLStore|PlanSQLStore|SubscriptionSQLStore)(MySQL|Postgres)Integration$') | Should Be $true
         } finally {
             Remove-Variable -Name gotenancyDatabaseTestArguments -Scope Global -ErrorAction SilentlyContinue
             if ($previousDocker) {
@@ -86,6 +86,7 @@ Describe 'run-integration.ps1 environment isolation' {
             . $runnerPath -KeepServices -CoverageProfile $profile
 
             $expectedCoveragePackages = @(
+                'github.com/DarkInno/gotenancy/biz/audit',
                 'github.com/DarkInno/gotenancy/biz/identity',
                 'github.com/DarkInno/gotenancy/biz/identity/oidc',
                 'github.com/DarkInno/gotenancy/biz/rbac',

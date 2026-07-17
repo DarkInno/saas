@@ -62,6 +62,32 @@ func TestTenantMiddlewareRejectsMissingTenant(t *testing.T) {
 	}
 }
 
+func TestTenantMiddlewareReturnsTimeoutBeforeCallingTenantPage(t *testing.T) {
+	app := fiber.New()
+	called := false
+	app.Use(TenantMiddleware(
+		resolver.NewComposite(resolver.NewHeaderContrib("", types.TenantIDStrategyString)),
+		timeoutTenantStore{err: context.DeadlineExceeded},
+	))
+	app.Get("/orders", func(c *fiber.Ctx) error {
+		called = true
+		return c.SendStatus(http.StatusOK)
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "/orders", nil)
+	request.Header.Set(resolver.DefaultHeaderName, "tenant-a")
+	response, err := app.Test(request)
+	if err != nil {
+		t.Fatalf("app.Test() error = %v", err)
+	}
+	if response.StatusCode != http.StatusRequestTimeout || bodyString(t, response) != `{"error":"tenant_forbidden"}` {
+		t.Fatalf("timeout response = %d, want 408 tenant_forbidden", response.StatusCode)
+	}
+	if called {
+		t.Fatal("tenant page handler was called after lookup timeout")
+	}
+}
+
 func TestTenantStatusGuard(t *testing.T) {
 	app := fiber.New()
 	app.Get("/missing", TenantStatusGuard(), func(c *fiber.Ctx) error {
@@ -163,4 +189,28 @@ func injectFiberTenant(status types.TenantStatus) fiber.Handler {
 		}))
 		return c.Next()
 	}
+}
+
+type timeoutTenantStore struct {
+	err error
+}
+
+func (store timeoutTenantStore) Get(context.Context, types.TenantID) (types.Tenant, error) {
+	return types.Tenant{}, store.err
+}
+
+func (timeoutTenantStore) List(context.Context, store.ListFilter) ([]types.Tenant, error) {
+	return nil, context.DeadlineExceeded
+}
+
+func (timeoutTenantStore) Create(context.Context, types.Tenant) error {
+	return context.DeadlineExceeded
+}
+
+func (timeoutTenantStore) Update(context.Context, types.Tenant) error {
+	return context.DeadlineExceeded
+}
+
+func (timeoutTenantStore) Delete(context.Context, types.TenantID) error {
+	return context.DeadlineExceeded
 }

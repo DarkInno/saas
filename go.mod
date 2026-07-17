@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	entgo.io/ent v0.14.1
+	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.55.2
 	github.com/aws/smithy-go v1.24.0
 	github.com/coreos/go-oidc/v3 v3.15.0

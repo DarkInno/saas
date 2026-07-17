@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$Profile,
-    [double]$Minimum = 65.0
+    [double]$Minimum = 85.0
 )
 
 $ErrorActionPreference = 'Stop'

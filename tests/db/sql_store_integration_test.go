@@ -3,6 +3,7 @@ package db_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -37,13 +38,12 @@ func TestSQLStoreMySQLIntegration(t *testing.T) {
 	}
 	resetTenantsTable(t, ctx, db)
 
-	testcontract.RunStoreContract(t, func() store.Store {
-		sqlStore, err := store.NewSQLStore(db)
-		if err != nil {
-			t.Fatalf("NewSQLStore() error = %v", err)
-		}
-		return sqlStore
-	})
+	sqlStore, err := store.NewSQLStore(db)
+	if err != nil {
+		t.Fatalf("NewSQLStore() error = %v", err)
+	}
+	testcontract.RunStoreContract(t, func() store.Store { return sqlStore })
+	runSQLStoreCompareAndSwapContract(t, ctx, sqlStore)
 }
 
 func TestSQLStorePostgresIntegration(t *testing.T) {
@@ -69,13 +69,52 @@ func TestSQLStorePostgresIntegration(t *testing.T) {
 	}
 	resetPostgresTenantsTable(t, ctx, db)
 
-	testcontract.RunStoreContract(t, func() store.Store {
-		sqlStore, err := store.NewSQLStore(db, store.WithSQLDialect(store.SQLDialectPostgres))
-		if err != nil {
-			t.Fatalf("NewSQLStore() error = %v", err)
-		}
-		return sqlStore
-	})
+	sqlStore, err := store.NewSQLStore(db, store.WithSQLDialect(store.SQLDialectPostgres))
+	if err != nil {
+		t.Fatalf("NewSQLStore() error = %v", err)
+	}
+	testcontract.RunStoreContract(t, func() store.Store { return sqlStore })
+	runSQLStoreCompareAndSwapContract(t, ctx, sqlStore)
+}
+
+func runSQLStoreCompareAndSwapContract(t *testing.T, ctx context.Context, sqlStore *store.SQLStore) {
+	t.Helper()
+
+	expected := testcontract.ContractTenant("tenant-cas")
+	if err := sqlStore.Create(ctx, expected); err != nil {
+		t.Fatalf("Create(tenant-cas) error = %v", err)
+	}
+
+	updated := expected
+	updated.Name = "Tenant CAS Updated"
+	updated.PlanID = "growth"
+	updated.Config = map[string]string{"feature": "advanced"}
+	if err := sqlStore.CompareAndSwap(ctx, expected, updated); err != nil {
+		t.Fatalf("CompareAndSwap(success) error = %v", err)
+	}
+	got, err := sqlStore.Get(ctx, expected.ID)
+	if err != nil {
+		t.Fatalf("Get(after CompareAndSwap) error = %v", err)
+	}
+	if got.Name != updated.Name || got.PlanID != updated.PlanID || got.Config["feature"] != "advanced" {
+		t.Fatalf("Get(after CompareAndSwap) = %+v, want updated tenant", got)
+	}
+
+	staleUpdate := expected
+	staleUpdate.Name = "Stale update must not apply"
+	if err := sqlStore.CompareAndSwap(ctx, expected, staleUpdate); !errors.Is(err, store.ErrTenantConflict) {
+		t.Fatalf("CompareAndSwap(stale) error = %v, want ErrTenantConflict", err)
+	}
+	if err := sqlStore.CompareAndSwap(ctx, updated, updated); err != nil {
+		t.Fatalf("CompareAndSwap(no-op) error = %v", err)
+	}
+
+	missing := testcontract.ContractTenant("tenant-cas-missing")
+	missingUpdated := missing
+	missingUpdated.Name = "Missing"
+	if err := sqlStore.CompareAndSwap(ctx, missing, missingUpdated); !errors.Is(err, store.ErrTenantNotFound) {
+		t.Fatalf("CompareAndSwap(missing) error = %v, want ErrTenantNotFound", err)
+	}
 }
 
 func pingUntilReady(ctx context.Context, db *sql.DB) error {

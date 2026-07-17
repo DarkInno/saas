@@ -62,6 +62,27 @@ func TestTenantMiddlewareRejectsMissingTenant(t *testing.T) {
 	}
 }
 
+func TestTenantMiddlewareReturnsTimeoutBeforeCallingTenantPage(t *testing.T) {
+	called := false
+	handler := TenantMiddleware(
+		resolver.NewComposite(resolver.NewHeaderContrib("", types.TenantIDStrategyString)),
+		timeoutTenantStore{err: context.DeadlineExceeded},
+	)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		called = true
+	}))
+
+	request := httptest.NewRequest(http.MethodGet, "/orders", nil)
+	request.Header.Set(resolver.DefaultHeaderName, "tenant-a")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusRequestTimeout || recorder.Body.String() != `{"error":"tenant_forbidden"}` {
+		t.Fatalf("tenant timeout response = %d %q, want 408 tenant_forbidden", recorder.Code, recorder.Body.String())
+	}
+	if called {
+		t.Fatal("tenant page handler ran after tenant lookup timeout")
+	}
+}
+
 func TestTenantStatusGuard(t *testing.T) {
 	handler := TenantStatusGuard(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("ok"))
@@ -115,3 +136,21 @@ func TestHostGuard(t *testing.T) {
 		t.Fatalf("with host status = %d, want 200", recorder.Code)
 	}
 }
+
+type timeoutTenantStore struct {
+	err error
+}
+
+func (failing timeoutTenantStore) Get(context.Context, types.TenantID) (types.Tenant, error) {
+	return types.Tenant{}, failing.err
+}
+
+func (failing timeoutTenantStore) List(context.Context, store.ListFilter) ([]types.Tenant, error) {
+	return nil, failing.err
+}
+
+func (failing timeoutTenantStore) Create(context.Context, types.Tenant) error { return failing.err }
+
+func (failing timeoutTenantStore) Update(context.Context, types.Tenant) error { return failing.err }
+
+func (failing timeoutTenantStore) Delete(context.Context, types.TenantID) error { return failing.err }

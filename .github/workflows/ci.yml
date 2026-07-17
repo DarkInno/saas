@@ -144,7 +144,7 @@ jobs:
         shell: pwsh
         run: |
           $coverageProfile = Join-Path $env:RUNNER_TEMP 'gotenancy-coverage.out'
-          ./tests/check-coverage.ps1 -Profile $coverageProfile -Minimum 65
+          ./tests/check-coverage.ps1 -Profile $coverageProfile -Minimum 85
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:

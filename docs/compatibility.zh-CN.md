@@ -49,7 +49,7 @@ GoTenancy 支持以必需的 `tenant_id` 边界实现共享数据库隔离。
 
 Pull Request 会运行既有的 Go 版本矩阵、lint、漏洞扫描和示例 smoke 测试，并额外包含两个独立门禁：
 
-- `coverage` 生成根模块的原子覆盖率 profile，强制至少 65.0% statements，并上传 profile 与摘要 artifact。
+- `coverage` 生成根模块的原子覆盖率 profile，强制至少 85.0% statements，并上传 profile 与摘要 artifact。
 - `integration (mysql, postgres, redis)` 运行基于一次性 Compose 的 MySQL、PostgreSQL、GORM 与 Redis 契约测试。
 
 独立的 `resilience` 工作流会在每周三 03:17 UTC 运行，也可手动触发。它执行有时间上限的原生 fuzz target 和确定性的 Toxiproxy 故障/恢复契约；这些耗时更长的检查有意不放在 Pull Request 路径中。

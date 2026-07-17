@@ -250,7 +250,7 @@ $unitProfile = Join-Path $env:TEMP 'gotenancy-unit-coverage.out'
 $profile = Join-Path $env:TEMP 'gotenancy-coverage.out' # merged unit + database profile
 go test -count=1 -covermode=atomic -coverpkg=./... "-coverprofile=$unitProfile" ./...
 ./tests/merge-coverage.ps1 -Profiles @($unitProfile, $sqlProfile) -Output $profile
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/check-coverage.ps1 -Profile $profile -Minimum 65
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/check-coverage.ps1 -Profile $profile -Minimum 85
 Remove-Item -LiteralPath $unitProfile, $sqlProfile, $profile, "$profile.txt" -Force -ErrorAction SilentlyContinue
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/run-chaos.ps1

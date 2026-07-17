@@ -14,6 +14,7 @@ $managedEnvironmentVariables = @(
     'GOTENANCY_REDIS_PASSWORD'
 )
 $databaseCoveragePackages = @(
+    'github.com/DarkInno/gotenancy/biz/audit',
     'github.com/DarkInno/gotenancy/biz/identity',
     'github.com/DarkInno/gotenancy/biz/identity/oidc',
     'github.com/DarkInno/gotenancy/biz/rbac',
@@ -49,7 +50,7 @@ try {
     Invoke-Checked go @('test', './data/gorm', '-run', '^TestMySQLIntegrationEnforcesTenantIsolation$', '-count=1')
     Push-Location (Join-Path $repoRoot 'tests/db')
     try {
-        $databaseTestArguments = @('test', './...', '-run', '^Test(SQLStore|QuotaSQLStore|RBACAndUserSQLStore|IdentitySQLStore|OIDCSQLLoginStore|FeatureSQLStore|PlanSQLStore|SubscriptionSQLStore)(MySQL|Postgres)Integration$', '-count=1')
+        $databaseTestArguments = @('test', './...', '-run', '^Test(AuditSQLStore|SQLStore|QuotaSQLStore|RBACAndUserSQLStore|IdentitySQLStore|OIDCSQLLoginStore|FeatureSQLStore|PlanSQLStore|SubscriptionSQLStore)(MySQL|Postgres)Integration$', '-count=1')
         if ($CoverageProfile) {
             $databaseTestArguments += @('-covermode=atomic', "-coverpkg=$databaseCoveragePackages", "-coverprofile=$CoverageProfile")
         }

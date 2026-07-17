@@ -61,6 +61,28 @@ func TestTenantMiddlewareRejectsMissingTenant(t *testing.T) {
 	}
 }
 
+func TestTenantMiddlewareReturnsTimeoutBeforeCallingTenantPage(t *testing.T) {
+	called := false
+	handler := TenantMiddleware(
+		resolver.NewComposite(resolver.NewHeaderContrib("", types.TenantIDStrategyString)),
+		timeoutTenantStore{err: context.DeadlineExceeded},
+	)(func(context.Context, any) (any, error) {
+		called = true
+		return "unexpected", nil
+	})
+
+	_, err := handler(kratosContext("tenant-a"), nil)
+	if code := kerrors.Code(err); code != http.StatusRequestTimeout {
+		t.Fatalf("timeout code = %d, want %d", code, http.StatusRequestTimeout)
+	}
+	if reason := kerrors.Reason(err); reason != reasonTenantForbidden {
+		t.Fatalf("timeout reason = %s, want %s", reason, reasonTenantForbidden)
+	}
+	if called {
+		t.Fatal("tenant page handler was called after lookup timeout")
+	}
+}
+
 func TestTenantMiddlewareUsesHTTPRequestFromServerContext(t *testing.T) {
 	backing := store.NewMemoryStore()
 	if err := backing.Create(context.Background(), types.Tenant{ID: "tenant-a", Status: types.TenantStatusActive}); err != nil {
@@ -233,4 +255,28 @@ func (header testHeader) Keys() []string {
 
 func (header testHeader) Values(key string) []string {
 	return append([]string(nil), header[key]...)
+}
+
+type timeoutTenantStore struct {
+	err error
+}
+
+func (store timeoutTenantStore) Get(context.Context, types.TenantID) (types.Tenant, error) {
+	return types.Tenant{}, store.err
+}
+
+func (timeoutTenantStore) List(context.Context, store.ListFilter) ([]types.Tenant, error) {
+	return nil, context.DeadlineExceeded
+}
+
+func (timeoutTenantStore) Create(context.Context, types.Tenant) error {
+	return context.DeadlineExceeded
+}
+
+func (timeoutTenantStore) Update(context.Context, types.Tenant) error {
+	return context.DeadlineExceeded
+}
+
+func (timeoutTenantStore) Delete(context.Context, types.TenantID) error {
+	return context.DeadlineExceeded
 }

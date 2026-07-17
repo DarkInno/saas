@@ -49,7 +49,7 @@ The disposable integration runner owns the local MySQL, PostgreSQL, and Redis en
 
 Pull requests run the existing Go version matrix, lint, vulnerability scan, and example smoke tests, plus two dedicated gates:
 
-- `coverage` creates an atomic root-module profile, enforces at least 65.0% statements, and uploads the profile and summary artifact.
+- `coverage` creates an atomic root-module profile, enforces at least 85.0% statements, and uploads the profile and summary artifact.
 - `integration (mysql, postgres, redis)` runs the disposable Compose-backed MySQL, PostgreSQL, GORM, and Redis contracts.
 
 The separate `resilience` workflow runs every Wednesday at 03:17 UTC and on manual dispatch. It executes bounded native fuzz targets and the deterministic Toxiproxy fault/recovery contracts; these longer-running checks are intentionally outside the pull-request path.
