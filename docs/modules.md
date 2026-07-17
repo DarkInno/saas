@@ -18,6 +18,18 @@ modules that do not need an external provider SDK.
 go get github.com/DarkInno/saas@v0.3.0
 ```
 
+### Host-integrated domain packages
+
+[`biz/commission`](../biz/commission) is a root-module, host-integrated domain
+package that applications opt into by composition. It has no payment SDK and
+does not execute payouts or migrations; the host supplies normalized business
+facts (such as paid/refund events), chooses when to record or reverse earnings,
+and optionally supplies a settlement adapter. Every `Service` command requires
+a host `Authorizer` adapter; callers must not treat the supplied `Actor` or
+`Actor.Host` fields as credentials. Settlement adapters return an explicit
+`pending`, `settled`, or `rejected` outcome, so only a verified terminal result
+changes a submitted batch.
+
 Keep the root and every selected optional module on the same SaaS release.
 For example, a GORM application installs exactly the root module and the GORM
 adapter:

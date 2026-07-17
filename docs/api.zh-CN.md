@@ -64,6 +64,7 @@ SaaS 仅支持一种拓扑：共享应用数据库和共享表，每一行租户
 | `biz/user` | 用户和租户成员，提供内存实现和 `database/sql` SQLStore。 |
 | `biz/rbac` | 租户作用域角色、`Role.HasPermission`、权限检查、内存 Enforcer 和 `database/sql` SQLStore。 |
 | `biz/audit` | 租户作用域审计事件存储，提供内存实现和 `database/sql` SQLStore。 |
+| `biz/commission` | 可选的租户范围佣金领域包，提供版本化平台模板、受约束的租户计划、分档计算、不可变决策/收益/分录/outbox 记录及宿主适配的结算状态；所有 Service 命令均需授权，服务商提交会区分 pending 与经验证的终态结果；提供内存和 `database/sql` 存储，但绝不执行迁移或打款。 |
 | `biz/notification` | 租户作用域通知接口、内存 notifier、SMTP 邮件 notifier、Amazon SES API v2 notifier、Resend 邮件 API notifier、支持可选 HMAC 签名的 HTTP webhook notifier、渠道路由器、顺序扇出、重试和超时装饰器。 |
 
 ## 示例

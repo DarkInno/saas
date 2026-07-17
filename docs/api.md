@@ -66,6 +66,7 @@ context; failures are returned as generic deployment-unavailable denials.
 | `biz/user` | Users and tenant members with memory implementation and `database/sql` SQLStore. |
 | `biz/rbac` | Tenant-scoped roles, `Role.HasPermission`, permission checks, memory Enforcer, and `database/sql` SQLStore. |
 | `biz/audit` | Tenant-scoped audit event store with memory implementation and `database/sql` SQLStore. |
+| `biz/commission` | Optional tenant-scoped commission domain with versioned platform templates, constrained tenant programs, tier calculation, immutable decision/earning/journal/outbox records, and host-adapted settlement state. Every Service command is authorized; provider submission distinguishes pending from verified terminal settlement outcomes. It provides memory and `database/sql` stores but never executes migrations or payouts. |
 | `biz/notification` | Tenant-scoped notification interface, memory notifier, SMTP email notifier, Amazon SES API v2 notifier, Resend email API notifier, HTTP webhook notifier with optional HMAC signing, channel router, sequential fanout, retry, and timeout decorators. |
 
 ## Example
