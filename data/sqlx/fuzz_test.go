@@ -25,8 +25,8 @@ func FuzzQueryWithArgs(f *testing.F) {
 			return
 		}
 
-		if !strings.Contains(rewritten, "tenant_id = ?") {
-			t.Fatalf("QueryWithArgs(%q) = %q without a tenant condition", baseSQL, rewritten)
+		if !strings.HasSuffix(rewritten, "tenant_id = ?") {
+			t.Fatalf("QueryWithArgs(%q) = %q without an appended tenant condition", baseSQL, rewritten)
 		}
 		if len(args) != 2 || args[0] != "existing" || args[1] != "tenant-fuzz" {
 			t.Fatalf("QueryWithArgs(%q) args = %#v, want existing argument plus tenant-fuzz", baseSQL, args)
