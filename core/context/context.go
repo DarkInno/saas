@@ -7,8 +7,10 @@ import (
 )
 
 type state struct {
-	side   side
-	tenant types.Tenant
+	side          side
+	tenant        types.Tenant
+	deployment    types.DeploymentUnit
+	hasDeployment bool
 }
 
 // WithTenant returns a child context scoped to tenant.
@@ -19,6 +21,17 @@ func WithTenant(ctx context.Context, tenant types.Tenant) context.Context {
 	})
 }
 
+// WithTenantDeployment returns a child context scoped to tenant and its current
+// host-managed deployment unit.
+func WithTenantDeployment(ctx context.Context, tenant types.Tenant, deployment types.DeploymentUnit) context.Context {
+	return context.WithValue(ctx, stateKey{}, state{
+		side:          sideTenant,
+		tenant:        cloneTenant(tenant),
+		deployment:    cloneDeploymentUnit(deployment),
+		hasDeployment: true,
+	})
+}
+
 // FromContext returns the tenant stored in ctx.
 func FromContext(ctx context.Context) (types.Tenant, bool) {
 	current, ok := ctx.Value(stateKey{}).(state)
@@ -26,6 +39,15 @@ func FromContext(ctx context.Context) (types.Tenant, bool) {
 		return types.Tenant{}, false
 	}
 	return cloneTenant(current.tenant), true
+}
+
+// DeploymentFromContext returns the deployment unit stored in a tenant context.
+func DeploymentFromContext(ctx context.Context) (types.DeploymentUnit, bool) {
+	current, ok := ctx.Value(stateKey{}).(state)
+	if !ok || current.side != sideTenant || !current.hasDeployment {
+		return types.DeploymentUnit{}, false
+	}
+	return cloneDeploymentUnit(current.deployment), true
 }
 
 // WithHost returns a child context explicitly marked as host-side.
@@ -50,4 +72,20 @@ func cloneTenant(tenant types.Tenant) types.Tenant {
 	}
 	tenant.Config = cloned
 	return tenant
+}
+
+func cloneDeploymentUnit(deployment types.DeploymentUnit) types.DeploymentUnit {
+	if deployment.ResidencyTags != nil {
+		deployment.ResidencyTags = append([]string(nil), deployment.ResidencyTags...)
+	}
+
+	if deployment.Metadata != nil {
+		cloned := make(map[string]string, len(deployment.Metadata))
+		for key, value := range deployment.Metadata {
+			cloned[key] = value
+		}
+		deployment.Metadata = cloned
+	}
+
+	return deployment
 }

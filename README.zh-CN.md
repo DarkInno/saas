@@ -14,16 +14,19 @@ SaaS 是一个面向生产环境、与 ORM 无关的 Go 多租户应用工具包
 
 - **仅支持**共享数据库、共享 Schema 隔离：租户数据使用同一组表，并且必须具有 `tenant_id` 边界。
 - 只能通过显式主机上下文进行全局主机访问。
+- 提供逻辑的租户到部署单元映射、宿主定义的放置策略和受控迁移。
 - 内置 sqlx 辅助能力，以及可选的 GORM、Ent 租户感知数据访问适配器。
 - 内置 HTTP 中间件，以及可选的 Gin、Echo、Fiber、Kratos 和 gRPC 集成。
 - 租户生命周期、套餐、订阅、配额、功能、认证后身份关联、RBAC、审计、用户和通知。
 
 SaaS 不实现按租户独立数据库、独立 Schema 或混合隔离；它不会创建租户数据库或 Schema、路由租户连接，或在运行时切换 Schema。需要这些模型的应用必须自行提供该层能力，或采用其他隔离方案。
+部署映射仅是控制面目录；物理路由、连接选择和数据迁移仍由宿主负责。
 可选集成采用独立 Go 模块，因此核心工具包不会引入框架、ORM、Redis、OIDC、OpenTelemetry 或提供商 SDK 依赖。
 
 ## 架构
 
 有关宿主集成、租户边界、数据隔离和外部适配器图，请参阅 [docs/architecture.zh-CN.md](docs/architecture.zh-CN.md)。
+有关逻辑放置和区域驻留集成，请参阅 [docs/deployment.zh-CN.md](docs/deployment.zh-CN.md)。
 
 ## 从 GoTenancy 迁移
 
@@ -190,8 +193,8 @@ ctx := tenantctx.WithHost(context.Background())
 
 ## 包
 
-- `core/types`：租户 ID、租户元数据、状态和侧类型。
-- `core/context`：租户和主机上下文、detach 和 switch。
+- `core/types`：租户与部署单元 ID、元数据、状态和侧类型。
+- `core/context`：租户、部署单元和主机上下文，以及 detach 和 switch。
 - `core/resolver`：header、cookie、query、domain、token-claim 和组合式解析器。
 - `core/store`：内存存储、分页列表过滤器、内存缓存、缓存存储装饰器以及 `database/sql` 存储。
 - `data`：与 ORM 无关的租户过滤条件。
@@ -203,14 +206,15 @@ ctx := tenantctx.WithHost(context.Background())
 - `subscription`：订阅生命周期、续订、过期、宽限期处理、计费 hook、Store、内存实现和 `database/sql` SQLStore。
 - `quota`：配额检查、原子消耗、重置、内存实现和 `database/sql` SQLStore。
 - `feature`：套餐默认功能、租户级功能覆盖、内存实现和 `database/sql` SQLStore。
-- `onboarding`：涵盖租户、套餐、订阅、功能、配额、审计和通知服务的租户开通流程。
+- `deployment`：逻辑租户放置目录、内存和 `database/sql` 存储、宿主策略/审计 hook 与受控迁移；物理路由仍由宿主负责。
+- `onboarding`：涵盖租户、套餐、订阅、功能、配额、审计、通知和可选部署分配服务的租户开通流程。
 - `biz/identity`：针对已验证外部身份断言的认证后租户用户映射，提供内存和 `database/sql` 存储。
 - `biz/identity/oidc`：可选的 Go 1.24 OIDC 授权码桥接，支持 PKCE、state、nonce、ID Token 验证、一次性登录状态存储、SQL 支持的登录状态存储和断言输出。
-- `web/http`：核心的 `net/http` 租户中间件和防护；Gin、Echo、Fiber、Kratos 为可选模块。
-- `rpc/grpc`：可选的 Go 1.23 gRPC unary 和 stream 租户拦截器。
+- `web/http`：核心的 `net/http` 租户中间件和防护，支持可选部署解析；Gin、Echo、Fiber、Kratos 为可选模块。
+- `rpc/grpc`：可选的 Go 1.23 gRPC unary 和 stream 租户拦截器，支持可选部署解析。
 - `migration`：租户列和索引规划。
 - `cache`：核心租户作用域缓存包装器和内存适配器；`cache/redis` 是可选的 Go 1.24 适配器。
-- `obs`：核心租户可观测性字段、脱敏和 `slog` 辅助函数；`obs/otel` 是可选的 Go 1.23 模块。
+- `obs`：核心租户可观测性字段、部署单元 ID、脱敏和 `slog` 辅助函数；`obs/otel` 是可选的 Go 1.23 模块。
 - `biz/*`：身份、用户、RBAC、审计和通知模块，提供内存存储、当持久化属于模块契约时提供 SQL 存储、SMTP/Resend/webhook 投递、渠道路由、扇出、重试和超时辅助函数；SES 为可选模块。
 
 ## 认证后身份映射
@@ -283,6 +287,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/run-chaos.ps1
 
 ```text
 core/          Tenant context, resolver, store, and types
+deployment/    Logical tenant-to-deployment-unit directory and moves
 data/          Data filtering contracts and adapters
 tenant/        租户生命周期模块
 plan/          套餐元数据和存储

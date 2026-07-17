@@ -8,7 +8,10 @@
 - Host operations use `core/context.WithHost`.
 - Long-lived jobs should store tenant metadata and rebuild context explicitly.
 - Tenant and host state use a private, package-specific typed context key, not a string or exported key. Code outside `core/context` cannot construct the same key, so values added by OpenTelemetry, logging, and other libraries through standard `context.WithValue` calls do not collide with or overwrite the SaaS state.
-- Use `WithTenant`, `WithHost`, `FromContext`, and `IsHost` rather than setting context values directly. A later `WithTenant` or `WithHost` call intentionally replaces SaaS state for its child context.
+- Use `WithTenant`, `WithTenantDeployment`, `WithHost`, `FromContext`, `DeploymentFromContext`, and `IsHost` rather than setting context values directly. A later `WithTenant` or `WithHost` call intentionally replaces SaaS state for its child context.
+- `WithHost`, `Detach`, and `Switch` clear deployment placement along with the
+  tenant scope, so host-side and switched-tenant work cannot inherit a prior
+  tenant's placement.
 
 ## GORM Guardrails
 
@@ -29,6 +32,11 @@
 
 - HTTP, Gin, Echo, Fiber, Kratos, and gRPC tenant middleware reject non-active tenants by default.
 - Active-status guards are also available for trusted contexts created outside middleware.
+- When `WithDeploymentResolver` is enabled, web and gRPC adapters deny failed
+  placement resolution with a generic deployment-unavailable response. Hosts
+  that require regional or residency rules should enforce them through
+  `deployment.Policy`; tags are host-defined metadata, not legal assertions
+  made by this library.
 
 ## Identity And OIDC
 
@@ -63,6 +71,8 @@
 - `obs.RedactSlogAttrs` redacts sensitive `slog` attributes, including nested groups, before structured log emission.
 - `obs.RecordSpanError` records sanitized OpenTelemetry error events with the original error type and a caller-provided or generic status description, avoiding accidental tenant or secret leakage through telemetry messages.
 - Tenant IDs are emitted as structured observability fields, not embedded into error strings by framework adapters.
+- Deployment-aware telemetry adds only `deployment_unit_id`; it intentionally
+  excludes region labels, residency tags, and arbitrary host metadata.
 - `biz/notification.SESNotifier` uses the official AWS SDK v2 `sesv2.SendEmail` client path instead of hand-written SigV4 signing, maps explicit message tags to SES tags, returns safe delivery errors, and treats throttling/server faults as retryable.
 - `biz/notification.ResendNotifier` uses Resend's HTTPS email API with bearer authentication, a required `User-Agent`, optional idempotency key, safe status errors, and retry classification for `429` and `5xx` responses.
 - `biz/notification.WebhookNotifier` requires HTTPS unless the endpoint is loopback or insecure HTTP is explicitly allowed, rejects URL userinfo, emits JSON payloads, supports HMAC signatures, and does not include provider response bodies in error strings.

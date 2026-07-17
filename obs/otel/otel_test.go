@@ -65,6 +65,15 @@ func TestSpanAttributesWithoutTenantAndForHost(t *testing.T) {
 	})
 }
 
+func TestSpanAttributesIncludesDeploymentUnitID(t *testing.T) {
+	ctx := tenantctx.WithTenantDeployment(context.Background(), types.Tenant{ID: "tenant-a"}, types.DeploymentUnit{
+		ID:     "eu-central-1",
+		Status: types.DeploymentUnitStatusActive,
+	})
+	attrs := SpanAttributes(ctx)
+	assertAttribute(t, attrs, obs.DeploymentUnitIDField, "eu-central-1")
+}
+
 func TestAddSpanAttributes(t *testing.T) {
 	span := &recordingSpan{recording: true}
 	ctx := tenantctx.WithTenant(context.Background(), types.Tenant{ID: "tenant-a"})

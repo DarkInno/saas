@@ -6,6 +6,7 @@ import (
 	tenantctx "github.com/DarkInno/saas/core/context"
 	"github.com/DarkInno/saas/core/store"
 	"github.com/DarkInno/saas/core/types"
+	"github.com/DarkInno/saas/deployment"
 	baserpc "github.com/DarkInno/saas/rpc"
 
 	"google.golang.org/grpc"
@@ -16,8 +17,9 @@ import (
 
 // Config controls gRPC tenant metadata extraction.
 type Config struct {
-	MetadataKey string
-	Strategy    types.TenantIDStrategy
+	MetadataKey        string
+	Strategy           types.TenantIDStrategy
+	DeploymentResolver deployment.Resolver
 }
 
 // Option configures gRPC interceptors.
@@ -34,6 +36,14 @@ func WithMetadataKey(key string) Option {
 func WithTenantIDStrategy(strategy types.TenantIDStrategy) Option {
 	return func(config *Config) {
 		config.Strategy = strategy
+	}
+}
+
+// WithDeploymentResolver resolves a tenant's current deployment unit after
+// tenant lookup succeeds. Passing nil leaves deployment resolution disabled.
+func WithDeploymentResolver(resolver deployment.Resolver) Option {
+	return func(config *Config) {
+		config.DeploymentResolver = resolver
 	}
 }
 
@@ -131,6 +141,13 @@ func tenantContext(ctx context.Context, store store.Store, config Config) (conte
 	}
 	if tenant.Status != types.TenantStatusActive {
 		return nil, status.Error(codes.PermissionDenied, "tenant_inactive")
+	}
+	if config.DeploymentResolver != nil {
+		unit, err := config.DeploymentResolver.Resolve(ctx, tenant)
+		if err != nil || unit.ID == "" || unit.Status != types.DeploymentUnitStatusActive {
+			return nil, status.Error(codes.PermissionDenied, "deployment_unavailable")
+		}
+		return tenantctx.WithTenantDeployment(ctx, tenant, unit), nil
 	}
 	return tenantctx.WithTenant(ctx, tenant), nil
 }

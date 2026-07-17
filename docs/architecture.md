@@ -105,6 +105,11 @@ flowchart LR
 
 - HTTP and gRPC integrations resolve a tenant, load its metadata, and require
   it to be active before handing control to the host application.
+- With an optional deployment resolver, those integrations resolve a tenant's
+  logical deployment unit after tenant lookup and attach it to the same
+  `context.Context`. The directory does not choose a database connection,
+  route traffic, or move data; those operations remain host-owned. See
+  [Deployment Units](deployment.md).
 - `context.Context` is the scope carrier. Background work must establish a
   tenant context explicitly; host-wide work must use the deliberate
   `core/context.WithHost` path.

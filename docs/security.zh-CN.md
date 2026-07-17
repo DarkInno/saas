@@ -8,7 +8,8 @@
 - 主机操作使用 `core/context.WithHost`。
 - 长生命周期任务应保存租户元数据，并显式重建上下文。
 - 租户和主机状态使用私有、包专属的带类型 Context 键，而非字符串或导出的键。`core/context` 外的代码无法构造同一个键，因此 OpenTelemetry、日志和其他库通过标准 `context.WithValue` 写入的值不会与 SaaS 状态碰撞或将其覆盖。
-- 请使用 `WithTenant`、`WithHost`、`FromContext` 和 `IsHost`，而不是直接设置 Context 值。后续的 `WithTenant` 或 `WithHost` 调用会有意在其子 Context 中替换 SaaS 状态。
+- 请使用 `WithTenant`、`WithTenantDeployment`、`WithHost`、`FromContext`、`DeploymentFromContext` 和 `IsHost`，而不是直接设置 Context 值。后续的 `WithTenant` 或 `WithHost` 调用会有意在其子 Context 中替换 SaaS 状态。
+- `WithHost`、`Detach` 和 `Switch` 会连同租户作用域清除部署位置，避免主机侧工作或切换租户后的工作继承此前租户的位置。
 
 ## GORM 防护措施
 
@@ -29,6 +30,7 @@
 
 - HTTP、Gin、Echo、Fiber、Kratos 和 gRPC 租户中间件默认拒绝非活跃租户。
 - 也可为在中间件外部创建的可信上下文使用活跃状态防护。
+- 启用 `WithDeploymentResolver` 后，Web 和 gRPC 适配器会以通用的“部署不可用”响应拒绝部署位置解析失败。需要区域或数据驻留规则的宿主应通过 `deployment.Policy` 实施；标签是宿主定义的元数据，而不是本库作出的法律声明。
 
 ## 身份与 OIDC
 
@@ -63,6 +65,7 @@
 - `obs.RedactSlogAttrs` 会在结构化日志输出前对敏感 `slog` 属性（包括嵌套组）进行脱敏。
 - `obs.RecordSpanError` 使用原始错误类型和调用方提供或通用的状态描述记录已清理的 OpenTelemetry 错误事件，避免通过遥测消息意外泄漏租户或机密信息。
 - 框架适配器将租户 ID 作为结构化可观测性字段输出，而不是嵌入错误字符串。
+- 部署感知遥测只增加 `deployment_unit_id`；它刻意不包含区域标签、驻留标签或任意宿主元数据。
 - `biz/notification.SESNotifier` 使用官方 AWS SDK v2 `sesv2.SendEmail` 客户端路径，而非手写 SigV4 签名；将显式消息标签映射为 SES 标签；返回安全的投递错误；并将节流/服务器故障视为可重试。
 - `biz/notification.ResendNotifier` 使用带 bearer 身份验证、必需 `User-Agent`、可选幂等键、安全状态错误以及针对 `429` 和 `5xx` 响应重试分类的 Resend HTTPS 邮件 API。
 - `biz/notification.WebhookNotifier` 除非端点是 loopback 或显式允许不安全 HTTP，否则要求 HTTPS；拒绝 URL userinfo；输出 JSON payload；支持 HMAC 签名；并且不在错误字符串中包含供应商响应体。

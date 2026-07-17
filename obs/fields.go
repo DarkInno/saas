@@ -13,31 +13,40 @@ const (
 	// TenantSideField is the standard observability field for tenant side.
 	TenantSideField = "tenant_side"
 
+	// DeploymentUnitIDField is the standard observability field for the resolved
+	// logical deployment unit. It deliberately excludes geographic labels and
+	// host-owned endpoint metadata.
+	DeploymentUnitIDField = "deployment_unit_id"
+
 	hostSide   = "host"
 	tenantSide = "tenant"
 )
 
 // Fields returns tenant observability fields for ctx.
 func Fields(ctx context.Context) map[string]string {
-	tenantID, side := fieldValues(ctx)
+	tenantID, side, deploymentUnitID := fieldValues(ctx)
+	fields := make(map[string]string, 3)
 	if tenantID != "" {
-		return map[string]string{
-			TenantIDField:   tenantID,
-			TenantSideField: side,
-		}
+		fields[TenantIDField] = tenantID
 	}
 	if side != "" {
-		return map[string]string{TenantSideField: side}
+		fields[TenantSideField] = side
 	}
-	return map[string]string{}
+	if deploymentUnitID != "" {
+		fields[DeploymentUnitIDField] = deploymentUnitID
+	}
+	return fields
 }
 
-func fieldValues(ctx context.Context) (tenantID string, side string) {
+func fieldValues(ctx context.Context) (tenantID string, side string, deploymentUnitID string) {
 	if tenant, ok := tenantctx.FromContext(ctx); ok {
-		return tenant.ID.String(), tenantSide
+		if deployment, ok := tenantctx.DeploymentFromContext(ctx); ok {
+			deploymentUnitID = deployment.ID.String()
+		}
+		return tenant.ID.String(), tenantSide, deploymentUnitID
 	}
 	if tenantctx.IsHost(ctx) {
-		return "", hostSide
+		return "", hostSide, ""
 	}
-	return "", ""
+	return "", "", ""
 }

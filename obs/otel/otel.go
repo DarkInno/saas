@@ -39,16 +39,20 @@ func SpanAttributes(ctx context.Context) []attribute.KeyValue {
 	fields := obs.Fields(ctx)
 	tenantID := fields[obs.TenantIDField]
 	tenantSide := fields[obs.TenantSideField]
-	if tenantID == "" && tenantSide == "" {
+	deploymentUnitID := fields[obs.DeploymentUnitIDField]
+	if tenantID == "" && tenantSide == "" && deploymentUnitID == "" {
 		return nil
 	}
 
-	attrs := make([]attribute.KeyValue, 0, 2)
+	attrs := make([]attribute.KeyValue, 0, 3)
 	if tenantID != "" {
 		attrs = append(attrs, attribute.String(obs.TenantIDField, tenantID))
 	}
 	if tenantSide != "" {
 		attrs = append(attrs, attribute.String(obs.TenantSideField, tenantSide))
+	}
+	if deploymentUnitID != "" {
+		attrs = append(attrs, attribute.String(obs.DeploymentUnitIDField, deploymentUnitID))
 	}
 	return attrs
 }

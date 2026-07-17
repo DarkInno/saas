@@ -14,11 +14,14 @@ It provides tenant context and resolution, data guards, web/RPC middleware, tena
 
 - **Only** shared-database, shared-schema isolation: tenant-owned rows use the same tables and require a `tenant_id` boundary.
 - Host-wide access only through explicit host context.
+- Logical tenant-to-deployment-unit mapping with host-defined placement policy and controlled moves.
 - Built-in sqlx helpers plus optional GORM and Ent adapters for tenant-aware data access.
 - Built-in HTTP middleware plus optional Gin, Echo, Fiber, Kratos, and gRPC integrations.
 - Tenant lifecycle, plans, subscriptions, quotas, features, post-auth identity links, RBAC, audit, users, and notifications.
 
 SaaS does not implement database-per-tenant, schema-per-tenant, or hybrid isolation. It does not provision tenant databases or schemas, route tenant connections, or switch schemas at runtime. Applications that need those models must provide that layer separately or use a different isolation solution.
+Deployment mapping is a control-plane directory only; the host still owns physical
+routing, connection selection, and data movement.
 Optional integrations are separate Go modules, so the core toolkit does not pull
 in framework, ORM, Redis, OIDC, OpenTelemetry, or provider-SDK dependencies.
 
@@ -26,6 +29,8 @@ in framework, ORM, Redis, OIDC, OpenTelemetry, or provider-SDK dependencies.
 
 See [docs/architecture.md](docs/architecture.md) for the host-integration,
 tenant-boundary, data-isolation, and external-adapter diagram.
+For logical placement and regional-residency integration, see
+[docs/deployment.md](docs/deployment.md).
 
 ## Migration from GoTenancy
 
@@ -196,8 +201,8 @@ ctx := tenantctx.WithHost(context.Background())
 
 ## Packages
 
-- `core/types`: tenant IDs, tenant metadata, status, and side types.
-- `core/context`: tenant and host context, detach, and switch.
+- `core/types`: tenant and deployment-unit IDs, metadata, status, and side types.
+- `core/context`: tenant, deployment-unit, and host context; detach and switch.
 - `core/resolver`: header, cookie, query, domain, token-claim, and composite resolvers.
 - `core/store`: memory store, paginated list filters, memory cache, cached store decorator, and `database/sql` store.
 - `data`: ORM-independent tenant filter condition.
@@ -209,14 +214,15 @@ ctx := tenantctx.WithHost(context.Background())
 - `subscription`: subscription lifecycle, renewal, expiration, grace-period handling, billing hook, Store, memory implementation, and `database/sql` SQLStore.
 - `quota`: quota checking, atomic consumption, reset, memory implementation, and `database/sql` SQLStore.
 - `feature`: plan defaults, tenant-level feature overrides, memory implementation, and `database/sql` SQLStore.
-- `onboarding`: tenant onboarding flow across tenant, plan, subscription, feature, quota, audit, and notification services.
+- `deployment`: logical tenant placement directory, memory and `database/sql` stores, host policy/audit hooks, and controlled moves; physical routing remains host-owned.
+- `onboarding`: tenant onboarding flow across tenant, plan, subscription, feature, quota, audit, notification, and optional deployment-assignment services.
 - `biz/identity`: post-auth tenant user mapping for verified external identity assertions, with memory and `database/sql` stores.
 - `biz/identity/oidc`: optional Go 1.24 OIDC authorization-code bridge with PKCE, state, nonce, ID-token verification, one-time login state storage, SQL-backed login state storage, and assertion output.
-- `web/http`: core tenant middleware and guards for `net/http`; Gin, Echo, Fiber, and Kratos are optional modules.
-- `rpc/grpc`: optional Go 1.23 gRPC unary and stream tenant interceptors.
+- `web/http`: core tenant middleware and guards for `net/http`, with optional deployment resolution; Gin, Echo, Fiber, and Kratos are optional modules.
+- `rpc/grpc`: optional Go 1.23 gRPC unary and stream tenant interceptors with optional deployment resolution.
 - `migration`: tenant column and index planning.
 - `cache`: core tenant-scoped cache wrapper and memory adapters; `cache/redis` is an optional Go 1.24 adapter.
-- `obs`: core tenant observability fields, redaction, and `slog` helpers; `obs/otel` is an optional Go 1.23 module.
+- `obs`: core tenant observability fields, deployment-unit IDs, redaction, and `slog` helpers; `obs/otel` is an optional Go 1.23 module.
 - `biz/*`: identity, user, RBAC, audit, and notification modules with memory stores, SQL stores where persistence is part of the module contract, SMTP/Resend/webhook delivery, channel routing, fanout, retry, and timeout helpers. SES is optional.
 
 ## Post-Auth Identity Mapping
@@ -289,6 +295,7 @@ For production Redis, configure TLS, timeouts, retry limits, and OpenTelemetry o
 
 ```text
 core/          Tenant context, resolver, store, and types
+deployment/    Logical tenant-to-deployment-unit directory and moves
 data/          Data filtering contracts and adapters
 tenant/        Tenant lifecycle module
 plan/          Plan metadata and storage

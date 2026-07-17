@@ -13,6 +13,7 @@ import (
 	"github.com/DarkInno/saas/biz/notification"
 	"github.com/DarkInno/saas/core/store"
 	"github.com/DarkInno/saas/core/types"
+	"github.com/DarkInno/saas/deployment"
 	saasfeature "github.com/DarkInno/saas/feature"
 	saasplan "github.com/DarkInno/saas/plan"
 	saasquota "github.com/DarkInno/saas/quota"
@@ -30,6 +31,7 @@ type Service struct {
 	quotas        saasquota.Store
 	audit         audit.Store
 	notifier      notification.Notifier
+	deployments   DeploymentService
 	sentWelcome   map[welcomeDeliveryKey]struct{}
 }
 
@@ -69,6 +71,21 @@ func WithNotifier(notifier notification.Notifier) Option {
 	}
 }
 
+// DeploymentService binds a newly onboarded tenant to, and resolves, its
+// host-managed logical deployment unit.
+type DeploymentService interface {
+	Assign(context.Context, types.Tenant, types.DeploymentUnitID) (deployment.Assignment, error)
+	Resolve(context.Context, types.Tenant) (types.DeploymentUnit, error)
+}
+
+// WithDeploymentService requires onboarding requests to select a deployment
+// unit before subscription initialization and tenant activation.
+func WithDeploymentService(deployments DeploymentService) Option {
+	return func(service *Service) {
+		service.deployments = deployments
+	}
+}
+
 // New creates an onboarding service.
 func New(tenants saastenant.Service, plans saasplan.Service, subscriptions saassubscription.Service, opts ...Option) *Service {
 	service := &Service{
@@ -88,6 +105,7 @@ func New(tenants saastenant.Service, plans saasplan.Service, subscriptions saass
 // Input describes a tenant onboarding request.
 type Input struct {
 	Tenant                saastenant.CreateInput
+	DeploymentUnitID      types.DeploymentUnitID
 	SubscriptionPeriodEnd *time.Time
 	FeatureOverrides      []saasfeature.Flag
 	Welcome               *notification.Message
@@ -97,11 +115,12 @@ type Input struct {
 
 // Result describes the completed onboarding state.
 type Result struct {
-	Tenant       types.Tenant
-	Plan         saasplan.Plan
-	Subscription saassubscription.Subscription
-	Features     []saasfeature.Flag
-	QuotaLimits  []saasquota.Limit
+	Tenant         types.Tenant
+	DeploymentUnit types.DeploymentUnit
+	Plan           saasplan.Plan
+	Subscription   saassubscription.Subscription
+	Features       []saasfeature.Flag
+	QuotaLimits    []saasquota.Limit
 }
 
 // Onboard creates the tenant, attaches the selected plan subscription, initializes
@@ -138,6 +157,13 @@ func (service *Service) Onboard(ctx context.Context, input Input) (Result, error
 			return Result{}, err
 		}
 		return result, err
+	}
+	if service.deployments != nil {
+		unit, err := service.assignOrResolveDeployment(ctx, created, input.DeploymentUnitID)
+		result.DeploymentUnit = unit
+		if err != nil {
+			return result, err
+		}
 	}
 
 	subscription, subscribed, err := service.existingSubscription(ctx, created.ID, selectedPlan.ID, input.SubscriptionPeriodEnd)
@@ -198,7 +224,7 @@ func (service *Service) Onboard(ctx context.Context, input Input) (Result, error
 			TenantID: created.ID,
 			Action:   "tenant.onboard",
 			Resource: "tenant:" + created.ID.String(),
-			Metadata: auditMetadata(selectedPlan.ID, result.Tenant.Status, input.AuditMetadata),
+			Metadata: auditMetadata(selectedPlan.ID, result.Tenant.Status, result.DeploymentUnit.ID, input.AuditMetadata),
 		}
 		recorded, err := service.hasOnboardingAudit(ctx, event)
 		if err != nil {
@@ -298,6 +324,26 @@ func (service *Service) existingSubscription(ctx context.Context, tenantID types
 	return current, true, nil
 }
 
+func (service *Service) assignOrResolveDeployment(ctx context.Context, tenant types.Tenant, unitID types.DeploymentUnitID) (types.DeploymentUnit, error) {
+	_, err := service.deployments.Assign(ctx, tenant, unitID)
+	if err != nil && !errors.Is(err, deployment.ErrAssignmentAlreadyExists) {
+		unit, resolveErr := service.deployments.Resolve(ctx, tenant)
+		if resolveErr == nil && unit.ID == unitID {
+			return unit, err
+		}
+		return types.DeploymentUnit{}, err
+	}
+
+	unit, err := service.deployments.Resolve(ctx, tenant)
+	if err != nil {
+		return types.DeploymentUnit{}, err
+	}
+	if unit.ID != unitID {
+		return types.DeploymentUnit{}, ErrInvalidInput
+	}
+	return unit, nil
+}
+
 func (service *Service) hasOnboardingAudit(ctx context.Context, target audit.Event) (bool, error) {
 	events, err := service.audit.List(ctx, target.TenantID)
 	if err != nil {
@@ -321,6 +367,12 @@ func (service *Service) validate(input Input) error {
 		return ErrInvalidInput
 	}
 	if input.Tenant.PlanID == "" {
+		return ErrInvalidInput
+	}
+	if service.deployments != nil && input.DeploymentUnitID == "" {
+		return ErrInvalidInput
+	}
+	if service.deployments == nil && input.DeploymentUnitID != "" {
 		return ErrInvalidInput
 	}
 	if input.SubscriptionPeriodEnd != nil && input.SubscriptionPeriodEnd.IsZero() {
@@ -386,13 +438,16 @@ func quotaPeriod(period saasplan.QuotaPeriod) saasquota.Period {
 	}
 }
 
-func auditMetadata(planID string, status types.TenantStatus, extra map[string]string) map[string]string {
+func auditMetadata(planID string, status types.TenantStatus, deploymentUnitID types.DeploymentUnitID, extra map[string]string) map[string]string {
 	metadata := cloneStringMap(extra)
 	if metadata == nil {
 		metadata = map[string]string{}
 	}
 	metadata["plan_id"] = planID
 	metadata["tenant_status"] = string(status)
+	if deploymentUnitID != "" {
+		metadata["deployment_unit_id"] = deploymentUnitID.String()
+	}
 	return metadata
 }
 

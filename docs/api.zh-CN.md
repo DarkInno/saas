@@ -8,8 +8,8 @@
 
 | 包 | 用途 |
 |---|---|
-| `core/types` | 租户 ID、租户元数据、生命周期状态，以及主机/租户侧常量。 |
-| `core/context` | `WithTenant`、`FromContext`、`WithHost`、`IsHost`、`Detach` 和 `Switch`。 |
+| `core/types` | 租户与部署单元 ID、元数据、生命周期状态，以及主机/租户侧常量。 |
+| `core/context` | `WithTenant`、`WithTenantDeployment`、`DeploymentFromContext`、`FromContext`、`WithHost`、`IsHost`、`Detach` 和 `Switch`。 |
 | `core/resolver` | Header、cookie、query、domain、token-claim 和组合式 HTTP 租户解析器。 |
 | `core/store` | 租户元数据存储接口、分页列表过滤器、内存存储、TTL/有界缓存、缓存装饰器，以及 `database/sql` 存储。 |
 
@@ -33,7 +33,8 @@ SaaS 仅支持一种拓扑：共享应用数据库和共享表，每一行租户
 | `subscription` | 订阅生命周期，提供活跃/已取消/已过期状态、续订、宽限期过期扫描、计费 hook、Store、内存实现和 `database/sql` SQLStore。 |
 | `quota` | 配额检查、原子消耗、重置、内存实现、nil-store 防护和 `database/sql` SQLStore。 |
 | `feature` | 套餐默认功能和租户覆盖解析，提供内存实现和 `database/sql` SQLStore。 |
-| `onboarding` | 跨模块的租户开通流程：创建租户、校验套餐、创建订阅、初始化功能和配额、记录审计元数据、发送可选欢迎通知并激活租户。 |
+| `deployment` | 逻辑的租户到部署单元目录，提供内存和 `database/sql` 存储、宿主定义的策略/审计 hook 及受控迁移；绝不执行物理路由或数据迁移。 |
+| `onboarding` | 跨模块的租户开通流程：创建租户、校验套餐、可选地分配部署单元、创建订阅、初始化功能和配额、记录审计元数据、发送可选欢迎通知并激活租户。 |
 
 ## 集成
 
@@ -48,7 +49,10 @@ SaaS 仅支持一种拓扑：共享应用数据库和共享表，每一行租户
 | `cache` | 租户作用域缓存接口、键构建器、包装器、内存适配器、有界内存适配器和 Redis 适配器。 |
 | `rpc` | 与框架无关的租户元数据载体。 |
 | `rpc/grpc` | 默认强制活跃状态的 gRPC unary 和 stream 租户拦截器。 |
-| `obs` | 租户可观测性字段、脱敏、`slog` 辅助函数和 OpenTelemetry API 辅助函数。 |
+| `obs` | 租户与部署单元 ID 可观测性字段、脱敏、`slog` 辅助函数和 OpenTelemetry API 辅助函数。 |
+
+所有 Web 适配器和 gRPC 拦截器都接受可选的
+`WithDeploymentResolver`。配置后，它会在活跃租户查询成功后解析租户的逻辑部署单元，并将其写入请求上下文；失败会以通用的“部署不可用”拒绝结果返回。
 
 ## 业务模块
 

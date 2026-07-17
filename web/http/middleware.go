@@ -9,10 +9,28 @@ import (
 	"github.com/DarkInno/saas/core/resolver"
 	"github.com/DarkInno/saas/core/store"
 	"github.com/DarkInno/saas/core/types"
+	"github.com/DarkInno/saas/deployment"
 )
 
+// Config controls optional tenant middleware integrations.
+type Config struct {
+	DeploymentResolver deployment.Resolver
+}
+
+// Option configures TenantMiddleware.
+type Option func(*Config)
+
+// WithDeploymentResolver resolves a tenant's current deployment unit after
+// tenant lookup succeeds. Passing nil leaves deployment resolution disabled.
+func WithDeploymentResolver(resolver deployment.Resolver) Option {
+	return func(config *Config) {
+		config.DeploymentResolver = resolver
+	}
+}
+
 // TenantMiddleware resolves the current tenant and stores it in request context.
-func TenantMiddleware(resolver resolver.Resolver, store store.Store) func(http.Handler) http.Handler {
+func TenantMiddleware(resolver resolver.Resolver, store store.Store, opts ...Option) func(http.Handler) http.Handler {
+	config := newConfig(opts...)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tenantID, err := resolver.Resolve(r)
@@ -35,9 +53,33 @@ func TenantMiddleware(resolver resolver.Resolver, store store.Store) func(http.H
 				return
 			}
 
-			next.ServeHTTP(w, r.WithContext(tenantctx.WithTenant(r.Context(), tenant)))
+			ctx := tenantctx.WithTenant(r.Context(), tenant)
+			if config.DeploymentResolver != nil {
+				unit, err := config.DeploymentResolver.Resolve(r.Context(), tenant)
+				if err != nil || unit.ID == "" || unit.Status != types.DeploymentUnitStatusActive {
+					status := http.StatusForbidden
+					if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+						status = http.StatusRequestTimeout
+					}
+					writeError(w, status, "deployment_unavailable")
+					return
+				}
+				ctx = tenantctx.WithTenantDeployment(r.Context(), tenant, unit)
+			}
+
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func newConfig(opts ...Option) Config {
+	config := Config{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&config)
+		}
+	}
+	return config
 }
 
 // TenantStatusGuard allows only active tenants.

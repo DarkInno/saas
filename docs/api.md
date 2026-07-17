@@ -8,8 +8,8 @@ Public package overview.
 
 | Package | Purpose |
 |---|---|
-| `core/types` | Tenant IDs, tenant metadata, lifecycle statuses, and host/tenant side constants. |
-| `core/context` | `WithTenant`, `FromContext`, `WithHost`, `IsHost`, `Detach`, and `Switch`. |
+| `core/types` | Tenant and deployment-unit IDs, metadata, lifecycle statuses, and host/tenant side constants. |
+| `core/context` | `WithTenant`, `WithTenantDeployment`, `DeploymentFromContext`, `FromContext`, `WithHost`, `IsHost`, `Detach`, and `Switch`. |
 | `core/resolver` | Header, cookie, query, domain, token-claim, and composite HTTP tenant resolvers. |
 | `core/store` | Tenant metadata store interface, paginated list filters, memory store, TTL/bounded cache, cached decorator, and `database/sql` store. |
 
@@ -33,7 +33,8 @@ SaaS supports one topology: a shared application database and shared tables, wit
 | `subscription` | Subscription lifecycle with active/cancelled/expired states, renewal, grace-period expiration scans, billing hook, Store, memory implementation, and `database/sql` SQLStore. |
 | `quota` | Quota checking, atomic consuming, reset, memory implementation, nil-store guards, and `database/sql` SQLStore. |
 | `feature` | Plan default features plus tenant override resolution with memory implementation and `database/sql` SQLStore. |
-| `onboarding` | Cross-module tenant onboarding that creates a tenant, validates the plan, creates the subscription, initializes features and quotas, records audit metadata, sends an optional welcome notification, and activates the tenant. |
+| `deployment` | Logical tenant-to-deployment-unit directory with memory and `database/sql` stores, host-defined policy/audit hooks, and controlled moves; it never performs physical routing or data movement. |
+| `onboarding` | Cross-module tenant onboarding that creates a tenant, validates the plan, optionally assigns a deployment unit, creates the subscription, initializes features and quotas, records audit metadata, sends an optional welcome notification, and activates the tenant. |
 
 ## Integration
 
@@ -48,7 +49,12 @@ SaaS supports one topology: a shared application database and shared tables, wit
 | `cache` | Tenant-scoped cache interface, key builder, wrapper, memory adapter, bounded memory adapter, and Redis adapter. |
 | `rpc` | Framework-neutral tenant metadata carriers. |
 | `rpc/grpc` | gRPC unary and stream tenant interceptors with default active-status enforcement. |
-| `obs` | Tenant observability fields, redaction, `slog` helpers, and OpenTelemetry API helpers. |
+| `obs` | Tenant and deployment-unit-ID observability fields, redaction, `slog` helpers, and OpenTelemetry API helpers. |
+
+All web adapters and gRPC interceptors accept an optional
+`WithDeploymentResolver`. When configured, it resolves a tenant's logical
+deployment unit after active-tenant lookup and attaches it to the request
+context; failures are returned as generic deployment-unavailable denials.
 
 ## Business Modules
 

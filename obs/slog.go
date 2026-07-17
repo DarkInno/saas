@@ -7,17 +7,20 @@ import (
 
 // SlogAttrs returns tenant observability attributes for slog.
 func SlogAttrs(ctx context.Context) []slog.Attr {
-	tenantID, tenantSide := fieldValues(ctx)
-	if tenantID == "" && tenantSide == "" {
+	tenantID, tenantSide, deploymentUnitID := fieldValues(ctx)
+	if tenantID == "" && tenantSide == "" && deploymentUnitID == "" {
 		return nil
 	}
 
-	attrs := make([]slog.Attr, 0, 2)
+	attrs := make([]slog.Attr, 0, 3)
 	if tenantID != "" {
 		attrs = append(attrs, slog.String(TenantIDField, tenantID))
 	}
 	if tenantSide != "" {
 		attrs = append(attrs, slog.String(TenantSideField, tenantSide))
+	}
+	if deploymentUnitID != "" {
+		attrs = append(attrs, slog.String(DeploymentUnitIDField, deploymentUnitID))
 	}
 	return attrs
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/DarkInno/saas/core/resolver"
 	"github.com/DarkInno/saas/core/store"
 	"github.com/DarkInno/saas/core/types"
+	"github.com/DarkInno/saas/deployment"
 
 	kerrors "github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/middleware"
@@ -18,14 +19,32 @@ import (
 )
 
 const (
-	reasonTenantRequired  = "TENANT_REQUIRED"
-	reasonTenantForbidden = "TENANT_FORBIDDEN"
-	reasonTenantInactive  = "TENANT_INACTIVE"
-	reasonHostRequired    = "HOST_REQUIRED"
+	reasonTenantRequired        = "TENANT_REQUIRED"
+	reasonTenantForbidden       = "TENANT_FORBIDDEN"
+	reasonTenantInactive        = "TENANT_INACTIVE"
+	reasonDeploymentUnavailable = "DEPLOYMENT_UNAVAILABLE"
+	reasonHostRequired          = "HOST_REQUIRED"
 )
 
+// Config controls optional tenant middleware integrations.
+type Config struct {
+	DeploymentResolver deployment.Resolver
+}
+
+// Option configures TenantMiddleware.
+type Option func(*Config)
+
+// WithDeploymentResolver resolves a tenant's current deployment unit after
+// tenant lookup succeeds. Passing nil leaves deployment resolution disabled.
+func WithDeploymentResolver(resolver deployment.Resolver) Option {
+	return func(config *Config) {
+		config.DeploymentResolver = resolver
+	}
+}
+
 // TenantMiddleware resolves the current tenant and stores it in context.
-func TenantMiddleware(resolver resolver.Resolver, store store.Store) middleware.Middleware {
+func TenantMiddleware(resolver resolver.Resolver, store store.Store, opts ...Option) middleware.Middleware {
+	config := newConfig(opts...)
 	return func(next middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, req any) (any, error) {
 			request, err := requestFromContext(ctx)
@@ -49,9 +68,31 @@ func TenantMiddleware(resolver resolver.Resolver, store store.Store) middleware.
 				return nil, kerrors.Forbidden(reasonTenantInactive, "tenant inactive")
 			}
 
-			return next(tenantctx.WithTenant(ctx, tenant), req)
+			tenantCtx := tenantctx.WithTenant(ctx, tenant)
+			if config.DeploymentResolver != nil {
+				unit, err := config.DeploymentResolver.Resolve(ctx, tenant)
+				if err != nil || unit.ID == "" || unit.Status != types.DeploymentUnitStatusActive {
+					if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+						return nil, kerrors.New(http.StatusRequestTimeout, reasonDeploymentUnavailable, "deployment resolution timed out")
+					}
+					return nil, kerrors.Forbidden(reasonDeploymentUnavailable, "deployment unavailable")
+				}
+				tenantCtx = tenantctx.WithTenantDeployment(ctx, tenant, unit)
+			}
+
+			return next(tenantCtx, req)
 		}
 	}
+}
+
+func newConfig(opts ...Option) Config {
+	config := Config{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&config)
+		}
+	}
+	return config
 }
 
 // TenantStatusGuard allows only active tenants.

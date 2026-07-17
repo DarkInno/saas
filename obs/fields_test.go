@@ -25,6 +25,14 @@ func TestFields(t *testing.T) {
 		t.Fatalf("host Fields() = %#v, want host side", hostFields)
 	}
 
+	deploymentFields := Fields(tenantctx.WithTenantDeployment(context.Background(), types.Tenant{ID: "tenant-a"}, types.DeploymentUnit{
+		ID:     "cn-shanghai-1",
+		Status: types.DeploymentUnitStatusActive,
+	}))
+	if deploymentFields[DeploymentUnitIDField] != "cn-shanghai-1" {
+		t.Fatalf("deployment Fields() unit = %q, want cn-shanghai-1", deploymentFields[DeploymentUnitIDField])
+	}
+
 	empty := Fields(context.Background())
 	if len(empty) != 0 {
 		t.Fatalf("background Fields() = %#v, want empty", empty)
@@ -58,6 +66,20 @@ func TestSlogAttrs(t *testing.T) {
 	}
 	if attrs[1].Key != TenantSideField || attrs[1].Value.String() != tenantSide {
 		t.Fatalf("SlogAttrs()[1] = %#v, want tenant side", attrs[1])
+	}
+}
+
+func TestSlogAttrsIncludesDeploymentUnitID(t *testing.T) {
+	ctx := tenantctx.WithTenantDeployment(context.Background(), types.Tenant{ID: "tenant-a"}, types.DeploymentUnit{
+		ID:     "eu-central-1",
+		Status: types.DeploymentUnitStatusActive,
+	})
+	attrs := SlogAttrs(ctx)
+	if len(attrs) != 3 {
+		t.Fatalf("SlogAttrs() len = %d, want 3", len(attrs))
+	}
+	if attrs[2].Key != DeploymentUnitIDField || attrs[2].Value.String() != "eu-central-1" {
+		t.Fatalf("SlogAttrs()[2] = %#v, want deployment unit", attrs[2])
 	}
 }
 

@@ -9,13 +9,31 @@ import (
 	"github.com/DarkInno/saas/core/resolver"
 	"github.com/DarkInno/saas/core/store"
 	"github.com/DarkInno/saas/core/types"
+	"github.com/DarkInno/saas/deployment"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
 )
 
+// Config controls optional tenant middleware integrations.
+type Config struct {
+	DeploymentResolver deployment.Resolver
+}
+
+// Option configures TenantMiddleware.
+type Option func(*Config)
+
+// WithDeploymentResolver resolves a tenant's current deployment unit after
+// tenant lookup succeeds. Passing nil leaves deployment resolution disabled.
+func WithDeploymentResolver(resolver deployment.Resolver) Option {
+	return func(config *Config) {
+		config.DeploymentResolver = resolver
+	}
+}
+
 // TenantMiddleware resolves the current tenant and stores it in Fiber user context.
-func TenantMiddleware(resolver resolver.Resolver, store store.Store) fiber.Handler {
+func TenantMiddleware(resolver resolver.Resolver, store store.Store, opts ...Option) fiber.Handler {
+	config := newConfig(opts...)
 	return func(c *fiber.Ctx) error {
 		request, err := adaptor.ConvertRequest(c, false)
 		if err != nil {
@@ -41,9 +59,32 @@ func TenantMiddleware(resolver resolver.Resolver, store store.Store) fiber.Handl
 			return c.Status(http.StatusForbidden).JSON(errorBody("tenant_inactive"))
 		}
 
-		c.SetUserContext(tenantctx.WithTenant(ctx, tenant))
+		requestCtx := tenantctx.WithTenant(ctx, tenant)
+		if config.DeploymentResolver != nil {
+			unit, err := config.DeploymentResolver.Resolve(ctx, tenant)
+			if err != nil || unit.ID == "" || unit.Status != types.DeploymentUnitStatusActive {
+				status := http.StatusForbidden
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					status = http.StatusRequestTimeout
+				}
+				return c.Status(status).JSON(errorBody("deployment_unavailable"))
+			}
+			requestCtx = tenantctx.WithTenantDeployment(ctx, tenant, unit)
+		}
+
+		c.SetUserContext(requestCtx)
 		return c.Next()
 	}
+}
+
+func newConfig(opts ...Option) Config {
+	config := Config{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&config)
+		}
+	}
+	return config
 }
 
 // TenantStatusGuard allows only active tenants.

@@ -10,6 +10,7 @@ import (
 	"github.com/DarkInno/saas/biz/notification"
 	"github.com/DarkInno/saas/core/store"
 	"github.com/DarkInno/saas/core/types"
+	"github.com/DarkInno/saas/deployment"
 	saasfeature "github.com/DarkInno/saas/feature"
 	saasplan "github.com/DarkInno/saas/plan"
 	saasquota "github.com/DarkInno/saas/quota"
@@ -111,6 +112,87 @@ func TestServiceOnboardInitializesSaaSModules(t *testing.T) {
 	messages := notifier.Messages()
 	if len(messages) != 1 || messages[0].TenantID != "tenant-a" || messages[0].To != "owner@example.com" {
 		t.Fatalf("messages = %+v, want tenant welcome message", messages)
+	}
+}
+
+func TestServiceOnboardAssignsDeploymentBeforeActivation(t *testing.T) {
+	ctx := context.Background()
+	plans := saasplan.NewMemoryService()
+	if err := plans.Create(ctx, saasplan.Plan{ID: "starter", Name: "Starter"}); err != nil {
+		t.Fatalf("plans.Create() error = %v", err)
+	}
+
+	deployments := deployment.New(deployment.NewMemoryStore())
+	if err := deployments.CreateUnit(ctx, types.DeploymentUnit{
+		ID:            "cn-shanghai-1",
+		Status:        types.DeploymentUnitStatusActive,
+		Region:        "cn-shanghai",
+		ResidencyTags: []string{"cn", "data-local"},
+	}); err != nil {
+		t.Fatalf("CreateUnit() error = %v", err)
+	}
+
+	service := New(
+		saastenant.New(store.NewMemoryStore()),
+		plans,
+		saassubscription.NewMemoryService(),
+		WithDeploymentService(deployments),
+	)
+	input := Input{
+		Tenant:           saastenant.CreateInput{ID: "tenant-a", Name: "Tenant A", PlanID: "starter"},
+		DeploymentUnitID: "cn-shanghai-1",
+	}
+
+	result, err := service.Onboard(ctx, input)
+	if err != nil {
+		t.Fatalf("Onboard() error = %v", err)
+	}
+	if result.Tenant.Status != types.TenantStatusActive || result.DeploymentUnit.ID != "cn-shanghai-1" {
+		t.Fatalf("Onboard() result = %#v, want active tenant assigned to cn-shanghai-1", result)
+	}
+
+	resolved, err := deployments.Resolve(ctx, result.Tenant)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if resolved.ID != result.DeploymentUnit.ID {
+		t.Fatalf("Resolve() = %q, want %q", resolved.ID, result.DeploymentUnit.ID)
+	}
+
+	retry, err := service.Onboard(ctx, input)
+	if err != nil {
+		t.Fatalf("Onboard(retry) error = %v", err)
+	}
+	if retry.DeploymentUnit.ID != "cn-shanghai-1" {
+		t.Fatalf("Onboard(retry) deployment = %q, want cn-shanghai-1", retry.DeploymentUnit.ID)
+	}
+}
+
+func TestServiceOnboardRejectsDeploymentInputWithoutMatchingService(t *testing.T) {
+	ctx := context.Background()
+	plans := saasplan.NewMemoryService()
+	if err := plans.Create(ctx, saasplan.Plan{ID: "starter", Name: "Starter"}); err != nil {
+		t.Fatalf("plans.Create() error = %v", err)
+	}
+
+	withoutService := New(saastenant.New(store.NewMemoryStore()), plans, saassubscription.NewMemoryService())
+	if _, err := withoutService.Onboard(ctx, Input{
+		Tenant:           saastenant.CreateInput{ID: "tenant-a", Name: "Tenant A", PlanID: "starter"},
+		DeploymentUnitID: "cn-shanghai-1",
+	}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Onboard(without deployment service) error = %v, want ErrInvalidInput", err)
+	}
+
+	withService := New(
+		saastenant.New(store.NewMemoryStore()),
+		plans,
+		saassubscription.NewMemoryService(),
+		WithDeploymentService(deployment.New(deployment.NewMemoryStore())),
+	)
+	if _, err := withService.Onboard(ctx, Input{
+		Tenant: saastenant.CreateInput{ID: "tenant-a", Name: "Tenant A", PlanID: "starter"},
+	}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Onboard(with deployment service but no unit) error = %v, want ErrInvalidInput", err)
 	}
 }
 

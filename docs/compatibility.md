@@ -18,6 +18,11 @@ SaaS supports only shared-database, shared-schema isolation with a required `ten
 
 Database-per-tenant, schema-per-tenant, and hybrid isolation models are not part of the current API. The module does not provision tenant databases or schemas, route tenant connections, or switch schemas at runtime.
 
+The `deployment` package provides a logical tenant-to-unit directory, not a
+physical isolation topology. It does not change the shared-database contract or
+select connections; hosts own regional routing and data movement. See
+[Deployment Units](deployment.md).
+
 ## Adapters
 
 | Adapter | Dependency |
